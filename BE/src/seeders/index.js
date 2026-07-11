@@ -1,5 +1,5 @@
 const bcrypt = require('bcryptjs');
-const { sequelize, Role, User, Category, Course, Lesson, Enrollment, SubscriptionPackage, UserSubscription, CourseModule, ModuleContent, CourseSme } = require('../models');
+const { sequelize, Role, User, Category, Course, Lesson, Enrollment, SubscriptionPackage, UserSubscription, CourseModule, ModuleContent, CourseSme, Assignment } = require('../models');
 
 async function seedDatabase({ force = false } = {}) {
   if (force) await sequelize.sync({ force: true });
@@ -136,6 +136,14 @@ async function seedSmeCourses() {
         });
       }
     }
+  }
+  for (const sme of smes) for (const course of courses) {
+    const module = await CourseModule.findOne({ where: { courseId: course.id }, order: [['orderIndex', 'ASC']] });
+    await Assignment.findOrCreate({ where: { smeId: sme.id, courseId: course.id, title: `Bài tập tổng hợp - ${course.title}` }, defaults: {
+      moduleId: module?.id, instructions: 'Phân tích kiến thức đã học và xây dựng một sản phẩm minh họa. Trình bày quy trình, kết quả và phần tự đánh giá.',
+      rubric: [{ criterion: 'Kiến thức', description: 'Áp dụng chính xác kiến thức khóa học', points: 40 }, { criterion: 'Thực hành', description: 'Sản phẩm hoàn chỉnh và có minh chứng', points: 40 }, { criterion: 'Trình bày', description: 'Bố cục rõ ràng, dễ hiểu', points: 20 }],
+      maxScore: 100, status: 'published', dueAt: new Date(Date.now() + 14 * 86400000),
+    } });
   }
   console.log('SME course structure test data is ready.');
 }

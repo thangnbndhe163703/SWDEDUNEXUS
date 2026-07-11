@@ -11,6 +11,8 @@ const UserSubscription = require('./UserSubscription')(sequelize);
 const CourseModule = require('./CourseModule')(sequelize);
 const ModuleContent = require('./ModuleContent')(sequelize);
 const CourseSme = require('./CourseSme')(sequelize);
+const Assignment = require('./Assignment')(sequelize);
+const AssignmentSubmission = require('./AssignmentSubmission')(sequelize);
 
 Role.hasMany(User, { foreignKey: 'roleId', as: 'users' });
 User.belongsTo(Role, { foreignKey: 'roleId', as: 'role' });
@@ -41,5 +43,15 @@ Course.hasMany(CourseModule, { foreignKey: 'courseId', as: 'modules', onDelete: 
 CourseModule.belongsTo(Course, { foreignKey: 'courseId', as: 'course' });
 CourseModule.hasMany(ModuleContent, { foreignKey: 'moduleId', as: 'contents', onDelete: 'CASCADE' });
 ModuleContent.belongsTo(CourseModule, { foreignKey: 'moduleId', as: 'module' });
+Course.hasMany(Assignment, { foreignKey: 'courseId', as: 'assignments' });
+Assignment.belongsTo(Course, { foreignKey: 'courseId', as: 'course' });
+CourseModule.hasMany(Assignment, { foreignKey: 'moduleId', as: 'assignments' });
+Assignment.belongsTo(CourseModule, { foreignKey: 'moduleId', as: 'module' });
+User.hasMany(Assignment, { foreignKey: 'smeId', as: 'authoredAssignments' });
+Assignment.belongsTo(User, { foreignKey: 'smeId', as: 'sme' });
+Assignment.hasMany(AssignmentSubmission, { foreignKey: 'assignmentId', as: 'submissions' });
+AssignmentSubmission.belongsTo(Assignment, { foreignKey: 'assignmentId', as: 'assignment' });
+User.hasMany(AssignmentSubmission, { foreignKey: 'studentId', as: 'assignmentSubmissions' });
+AssignmentSubmission.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
 
-module.exports = { sequelize, Role, User, Category, Course, Lesson, Enrollment, SubscriptionPackage, UserSubscription, CourseModule, ModuleContent, CourseSme };
+module.exports = { sequelize, Role, User, Category, Course, Lesson, Enrollment, SubscriptionPackage, UserSubscription, CourseModule, ModuleContent, CourseSme, Assignment, AssignmentSubmission };

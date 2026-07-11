@@ -58,6 +58,7 @@ const SIDEBAR_NAV: Record<Role, { icon: React.ComponentType<{ size?: number }>; 
     { icon: BookOpen,         label: "Khóa học của tôi", view: "courses"   },
     { icon: Repeat,           label: "Flashcard",         view: "flashcard" },
     { icon: ListChecks,       label: "Bài kiểm tra",      view: "quiz"      },
+    { icon: FileText,         label: "Assignments",       view: "assignments" },
     { icon: BarChart3,        label: "Tiến độ",           view: "progress"  },
   ],
   teacher: [
@@ -69,6 +70,7 @@ const SIDEBAR_NAV: Record<Role, { icon: React.ComponentType<{ size?: number }>; 
   sme: [
     { icon: LayoutDashboard, label: "Tổng quan",         view: "dashboard" },
     { icon: Layers,           label: "Nội dung khóa học", view: "content"   },
+    { icon: FileText,         label: "Assignments",       view: "assignments" },
     { icon: Upload,           label: "Xuất bản",          view: "publish"   },
     { icon: Eye,              label: "Xem trước",          view: "preview"   },
   ],
@@ -545,6 +547,11 @@ function StudentView({ view }: { view: string }) {
   const [courseDetail, setCourseDetail] = useState<any>(null);
   const [activeLesson, setActiveLesson] = useState<any>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [studentAssignments, setStudentAssignments] = useState<any[]>([]);
+  const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
+  const [submissionContent, setSubmissionContent] = useState("");
+  const [submissionResult, setSubmissionResult] = useState<any>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token");
@@ -554,6 +561,24 @@ function StudentView({ view }: { view: string }) {
       .then(setLibrary)
       .catch(error => setLibraryError(error.message || "Không thể tải thư viện"));
   }, []);
+
+  useEffect(() => {
+    const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token"); if (!token) return;
+    fetch(`${API_URL}/student-assignments`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).then(data => Array.isArray(data) && setStudentAssignments(data));
+  }, []);
+
+  async function submitAssignment() {
+    const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token"); setSubmitting(true); setLibraryError("");
+    const response = await fetch(`${API_URL}/student-assignments/${selectedAssignment.id}/submit`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ content: submissionContent }) }); const data = await response.json();
+    if (!response.ok) { setLibraryError(data.message); setSubmitting(false); return; }
+    setSubmissionResult(data); setSubmitting(false);
+  }
+
+  async function refreshAssignmentResult(assignmentId: number) {
+    const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token");
+    const response = await fetch(`${API_URL}/student-assignments/${assignmentId}/result`, { headers: { Authorization: `Bearer ${token}` } }); const data = await response.json();
+    if (response.ok) setSubmissionResult(data); else setLibraryError(data.message);
+  }
 
   async function openCourseDetail(courseId: number) {
     const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token");
@@ -567,6 +592,30 @@ function StudentView({ view }: { view: string }) {
     } catch (error) { setLibraryError(error instanceof Error ? error.message : "Không thể tải chi tiết khóa học"); }
     finally { setDetailLoading(false); }
   }
+
+  if (view === "assignments") return <div className="p-6 max-w-6xl mx-auto">
+    <h2 className="text-xl font-bold mb-1">Assignments</h2><p className="text-sm text-muted-foreground mb-6">Nộp bài và xem kết quả đánh giá AI</p>
+    {libraryError && <div className="mb-4 bg-red-50 text-red-600 p-3 rounded-xl text-sm">{libraryError}</div>}
+    <div className="grid md:grid-cols-2 gap-4">{studentAssignments.map(item => { const result = item.submissions?.[0]; return <div key={item.id} className="bg-white border border-border rounded-2xl p-5">
+      <div className="flex justify-between gap-3"><Badge color="blue">{item.course?.title}</Badge><Badge color={result?.status === "completed" ? "green" : result ? "yellow" : "gray"}>{result?.status ?? "Chưa nộp"}</Badge></div>
+      <h3 className="font-bold mt-4">{item.title}</h3><p className="text-sm text-muted-foreground mt-2 line-clamp-3">{item.instructions}</p>
+      <div className="flex justify-between text-xs mt-4"><span>{item.maxScore} điểm</span><span>Hạn: {item.dueAt ? new Date(item.dueAt).toLocaleDateString("vi-VN") : "Không giới hạn"}</span></div>
+      <button onClick={() => { setSelectedAssignment(item); setSubmissionContent(result?.content ?? ""); setSubmissionResult(result ?? null); }} className="mt-4 w-full py-2.5 bg-[#1C2448] text-white rounded-xl text-sm font-bold">{result ? "Xem bài và kết quả" : "Nộp bài"}</button>
+    </div>; })}</div>
+    {selectedAssignment && <Modal title={selectedAssignment.title} onClose={() => setSelectedAssignment(null)}><div className="space-y-4 max-h-[75vh] overflow-auto pr-1">
+      <div className="bg-muted rounded-xl p-4"><p className="text-sm font-semibold">Yêu cầu</p><p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">{selectedAssignment.instructions}</p></div>
+      <FormField label="Nội dung bài nộp"><textarea value={submissionContent} onChange={e => setSubmissionContent(e.target.value)} className="w-full min-h-40 border border-border rounded-xl p-3 text-sm" placeholder="Nhập nội dung bài làm..." /></FormField>
+      <button onClick={submitAssignment} disabled={submitting || !submissionContent.trim()} className="w-full py-2.5 bg-[#5B6CF0] text-white rounded-xl font-bold text-sm disabled:opacity-50">{submitting ? "Đang gửi..." : submissionResult ? "Nộp lại và chấm lại" : "Nộp bài"}</button>
+      {submissionResult && <div className="border-t border-border pt-4">
+        <div className="flex justify-between items-center"><h3 className="font-bold">Kết quả đánh giá AI</h3><button onClick={() => refreshAssignmentResult(selectedAssignment.id)} className="text-xs font-bold text-[#5B6CF0] flex items-center gap-1"><RefreshCw size={12} /> Cập nhật</button></div>
+        {(submissionResult.status === "pending" || submissionResult.status === "processing") && <div className="mt-3 bg-yellow-50 text-yellow-700 p-3 rounded-xl text-sm">AI đang đánh giá bất đồng bộ. Nhấn “Cập nhật” sau ít phút.</div>}
+        {submissionResult.status === "failed" && <div className="mt-3 bg-red-50 text-red-600 p-3 rounded-xl text-sm">Đánh giá thất bại: {submissionResult.aiError}</div>}
+        {submissionResult.status === "completed" && <div className="mt-4"><div className="text-center bg-[#EEF0FF] rounded-xl p-4"><span className="text-sm">Tổng điểm</span><p className="text-3xl font-extrabold text-[#5B6CF0]">{Number(submissionResult.score)}/{selectedAssignment.maxScore}</p></div><p className="mt-4 text-sm leading-6">{submissionResult.feedback}</p>
+          <div className="mt-4 space-y-2">{(submissionResult.rubricResult ?? []).map((row:any,index:number)=><div key={index} className="border border-border rounded-xl p-3"><div className="flex justify-between"><b className="text-sm">{row.criterion}</b><b className="text-sm text-[#5B6CF0]">{row.score}/{row.maxScore}</b></div><p className="text-xs text-muted-foreground mt-1">{row.feedback}</p></div>)}</div>
+        </div>}
+      </div>}
+    </div></Modal>}
+  </div>;
 
   if (view === "flashcard") {
     if (FLASHCARDS.length === 0) return <div className="p-8 text-sm text-muted-foreground">Chưa có flashcard.</div>;
@@ -1141,6 +1190,11 @@ function SMEView({ view }: { view: string }) {
   const [smeCourses, setSmeCourses] = useState<any[]>([]);
   const [smeStructure, setSmeStructure] = useState<any>(null);
   const [smeError, setSmeError] = useState("");
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [assignmentForm, setAssignmentForm] = useState<any>({ id: null, courseId: "", moduleId: "", title: "", instructions: "", rubric: [], maxScore: 100, dueAt: "", status: "draft" });
+  const [assignmentEditing, setAssignmentEditing] = useState(false);
+  const [aiTopic, setAiTopic] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
     const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token");
@@ -1150,6 +1204,27 @@ function SMEView({ view }: { view: string }) {
       .then(setSmeCourses).catch(error => setSmeError(error.message));
   }, []);
 
+  useEffect(() => {
+    const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token");
+    if (!token) return;
+    fetch(`${API_URL}/assignments`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).then(data => Array.isArray(data) && setAssignments(data));
+  }, []);
+
+  async function generateAssignment() {
+    const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token"); setAiLoading(true); setSmeError("");
+    try { const response = await fetch(`${API_URL}/assignments/generate`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ topic: aiTopic, level: "trung cấp" }) }); const data = await response.json(); if (!response.ok) throw new Error(data.message); setAssignmentForm((form: any) => ({ ...form, title: data.title, instructions: data.instructions, rubric: data.rubric, maxScore: 100 })); }
+    catch (error) { setSmeError(error instanceof Error ? error.message : "Không thể sinh nội dung"); } finally { setAiLoading(false); }
+  }
+
+  async function saveAssignment() {
+    const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token");
+    const method = assignmentForm.id ? "PUT" : "POST"; const url = assignmentForm.id ? `${API_URL}/assignments/${assignmentForm.id}` : `${API_URL}/assignments`;
+    const payload = { ...assignmentForm, courseId: Number(assignmentForm.courseId), moduleId: assignmentForm.moduleId ? Number(assignmentForm.moduleId) : null, dueAt: assignmentForm.dueAt || null };
+    const response = await fetch(url, { method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) }); const data = await response.json();
+    if (!response.ok) { setSmeError(data.message); return; }
+    setAssignments(items => assignmentForm.id ? items.map(item => item.id === data.id ? data : item) : [data, ...items]); setAssignmentEditing(false);
+  }
+
   async function openSmeStructure(courseId: number) {
     const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token");
     const response = await fetch(`${API_URL}/sme/courses/${courseId}/structure`, { headers: { Authorization: `Bearer ${token}` } });
@@ -1157,6 +1232,21 @@ function SMEView({ view }: { view: string }) {
     if (!response.ok) { setSmeError(data.message); return; }
     setSmeStructure(data);
   }
+
+  if (view === "assignments") return <div className="p-6 max-w-6xl mx-auto">
+    <div className="flex justify-between mb-6"><div><h2 className="text-xl font-bold">Assignments</h2><p className="text-sm text-muted-foreground mt-1">Danh sách và rubric bài tập</p></div><button onClick={() => { setAssignmentForm({ id: null, courseId: smeCourses[0]?.id ?? "", moduleId: "", title: "", instructions: "", rubric: [], maxScore: 100, dueAt: "", status: "draft" }); setAssignmentEditing(true); }} className="px-4 py-2 bg-[#1C2448] text-white rounded-xl text-sm font-bold"><Plus size={14} className="inline mr-1" /> Thêm assignment</button></div>
+    {smeError && <div className="mb-4 bg-red-50 text-red-600 p-3 rounded-xl text-sm">{smeError}</div>}
+    <div className="bg-white border border-border rounded-2xl overflow-hidden">{assignments.map(item => <button key={item.id} onClick={() => { setAssignmentForm({ ...item, courseId: item.courseId, moduleId: item.moduleId ?? "", dueAt: item.dueAt ? item.dueAt.slice(0, 10) : "" }); setAssignmentEditing(true); }} className="w-full p-4 flex text-left items-center gap-3 border-b border-border last:border-0 hover:bg-muted/30"><FileText size={18} className="text-[#5B6CF0]" /><div className="flex-1"><p className="font-semibold text-sm">{item.title}</p><p className="text-xs text-muted-foreground mt-1">{item.course?.title} · {item.rubric?.length ?? 0} tiêu chí · {item.maxScore} điểm</p></div><Badge color={item.status === "published" ? "green" : "gray"}>{item.status}</Badge></button>)}</div>
+    {assignmentEditing && <Modal title={assignmentForm.id ? "Chi tiết assignment" : "Thêm assignment"} onClose={() => setAssignmentEditing(false)}><div className="space-y-4 max-h-[75vh] overflow-auto pr-1">
+      <div className="bg-[#EEF0FF] p-4 rounded-xl"><label className="text-xs font-bold">Sinh nội dung và rubric bằng Gemini</label><div className="flex gap-2 mt-2"><input value={aiTopic} onChange={e => setAiTopic(e.target.value)} placeholder="Nhập chủ đề assignment" className="flex-1 border rounded-xl px-3 text-sm" /><button onClick={generateAssignment} disabled={aiLoading || !aiTopic} className="px-3 py-2 bg-[#5B6CF0] text-white rounded-xl text-xs font-bold disabled:opacity-50">{aiLoading ? "Đang sinh..." : "Sinh bằng AI"}</button></div></div>
+      <FormField label="Khóa học"><FSelect value={String(assignmentForm.courseId)} onChange={v => setAssignmentForm((f:any) => ({...f,courseId:v,moduleId:""}))}>{smeCourses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</FSelect></FormField>
+      <FormField label="Tiêu đề"><FInput value={assignmentForm.title} onChange={v => setAssignmentForm((f:any)=>({...f,title:v}))} /></FormField>
+      <FormField label="Hướng dẫn"><textarea value={assignmentForm.instructions} onChange={e => setAssignmentForm((f:any)=>({...f,instructions:e.target.value}))} className="w-full min-h-28 border border-border rounded-xl p-3 text-sm" /></FormField>
+      <div><label className="text-xs font-bold">Rubric</label>{(assignmentForm.rubric ?? []).map((row:any,index:number)=><div key={index} className="grid grid-cols-[1fr_2fr_70px] gap-2 mt-2"><input value={row.criterion} onChange={e=>setAssignmentForm((f:any)=>({...f,rubric:f.rubric.map((r:any,i:number)=>i===index?{...r,criterion:e.target.value}:r)}))} className="border rounded-lg p-2 text-xs" /><input value={row.description} onChange={e=>setAssignmentForm((f:any)=>({...f,rubric:f.rubric.map((r:any,i:number)=>i===index?{...r,description:e.target.value}:r)}))} className="border rounded-lg p-2 text-xs" /><input type="number" value={row.points} onChange={e=>setAssignmentForm((f:any)=>({...f,rubric:f.rubric.map((r:any,i:number)=>i===index?{...r,points:Number(e.target.value)}:r)}))} className="border rounded-lg p-2 text-xs" /></div>)}</div>
+      <div className="grid grid-cols-2 gap-3"><FormField label="Hạn nộp"><input type="date" value={assignmentForm.dueAt} onChange={e=>setAssignmentForm((f:any)=>({...f,dueAt:e.target.value}))} className="w-full border rounded-xl p-2 text-sm" /></FormField><FormField label="Trạng thái"><FSelect value={assignmentForm.status} onChange={v=>setAssignmentForm((f:any)=>({...f,status:v}))}><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></FSelect></FormField></div>
+      <button onClick={saveAssignment} className="w-full py-2.5 bg-[#1C2448] text-white rounded-xl text-sm font-bold">Lưu assignment</button>
+    </div></Modal>}
+  </div>;
 
   if (smeStructure) return <div className="p-6 max-w-6xl mx-auto">
     <button onClick={() => setSmeStructure(null)} className="mb-5 flex items-center gap-1 text-sm font-semibold text-[#5B6CF0]"><ArrowLeft size={15} /> Danh sách khóa học</button>
