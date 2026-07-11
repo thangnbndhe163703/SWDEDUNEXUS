@@ -2,7 +2,7 @@ require('dotenv').config();
 
 const app = require('./src/app');
 const { sequelize } = require('./src/models');
-const { seedDatabase } = require('./src/seeders');
+const { seedDatabase, seedStudentLibrary } = require('./src/seeders');
 
 const PORT = Number(process.env.PORT) || 5000;
 
@@ -12,13 +12,17 @@ async function startServer() {
     console.log('MySQL connected successfully.');
 
     if (process.env.DB_SYNC !== 'false') {
-      const alter = process.env.NODE_ENV !== 'production' && process.env.DB_ALTER === 'true';
-      await sequelize.sync({ alter });
-      console.log(`Code-first synchronization completed (alter: ${alter}).`);
+      // Do not use `alter: true` on application startup. With MySQL, Sequelize
+      // can create another UNIQUE index for the same column on every restart,
+      // eventually reaching MySQL's limit of 64 keys per table.
+      // Schema changes should be applied through explicit migrations instead.
+      await sequelize.sync();
+      console.log('Database synchronization completed (create missing tables only).');
     }
 
     if (process.env.DB_SEED !== 'false') {
       await seedDatabase();
+      await seedStudentLibrary();
     }
 
     app.listen(PORT, () => {

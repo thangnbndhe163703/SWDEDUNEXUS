@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   LayoutDashboard, Users, BookOpen, BarChart3, Settings,
@@ -20,6 +20,14 @@ import {
 
 // ───────────────────── TYPES ─────────────────────
 type Role = "guest" | "student" | "teacher" | "sme" | "manager" | "admin";
+type AuthUser = { fullName?: string; email?: string; avatarUrl?: string; role?: { name?: string } };
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
+
+function getAuthenticatedRole(user: any): Role {
+  const role = String(user?.role?.name ?? user?.role ?? "").toLowerCase();
+  if (["student", "teacher", "sme", "manager", "admin"].includes(role)) return role as Role;
+  throw new Error("Tài khoản chưa được phân quyền hợp lệ");
+}
 
 // ───────────────────── DATA ─────────────────────
 const ROLES: { id: Role; label: string; color: string }[] = [
@@ -31,92 +39,16 @@ const ROLES: { id: Role; label: string; color: string }[] = [
   { id: "admin",   label: "Admin",           color: "#EF4444" },
 ];
 
-const COURSES = [
-  { id: 1, title: "Machine Learning Fundamentals", instructor: "Dr. Nguyễn Minh Tuấn", category: "AI & Data",    level: "Trung cấp", price: 1_200_000, students: 2847, rating: 4.8, lessons: 42, hours: 28, image: "photo-1555949963-aa79dcee981c" },
-  { id: 2, title: "React & TypeScript Mastery",    instructor: "Trần Phương Linh",      category: "Web Dev",     level: "Nâng cao",  price: 990_000,   students: 1923, rating: 4.9, lessons: 58, hours: 35, image: "photo-1461749280684-dccba630e2f6" },
-  { id: 3, title: "Digital Marketing Strategy",    instructor: "Lê Hoàng Nam",          category: "Marketing",   level: "Cơ bản",    price: 750_000,   students: 3421, rating: 4.7, lessons: 30, hours: 18, image: "photo-1432888498266-38ffec3eaf0a" },
-  { id: 4, title: "Financial Analysis & Modeling", instructor: "Phạm Thu Hằng",         category: "Finance",     level: "Trung cấp", price: 1_500_000, students: 1205, rating: 4.6, lessons: 38, hours: 24, image: "photo-1611974789855-9c2a0a7236a3" },
-];
-
-const REVENUE_DATA = [
-  { month: "T1/26", revenue: 45, enrollments: 120 },
-  { month: "T2/26", revenue: 62, enrollments: 145 },
-  { month: "T3/26", revenue: 58, enrollments: 138 },
-  { month: "T4/26", revenue: 71, enrollments: 162 },
-  { month: "T5/26", revenue: 89, enrollments: 198 },
-  { month: "T6/26", revenue: 94, enrollments: 215 },
-];
-
-const USERS = [
-  { id: 1, name: "Nguyễn Văn An",  email: "an.nguyen@edunexus.vn",    role: "Student",  status: "active",   joined: "15/03/2026", courses: 3,  avatar: "AN" },
-  { id: 2, name: "Trần Thị Bích",  email: "bich.tran@edunexus.vn",    role: "Teacher",  status: "active",   joined: "02/01/2026", courses: 5,  avatar: "TB" },
-  { id: 3, name: "Lê Minh Cường",  email: "cuong.le@edunexus.vn",     role: "SME",      status: "active",   joined: "28/02/2026", courses: 2,  avatar: "LC" },
-  { id: 4, name: "Phạm Thị Dung",  email: "dung.pham@edunexus.vn",    role: "Student",  status: "inactive", joined: "10/04/2026", courses: 1,  avatar: "PD" },
-  { id: 5, name: "Hoàng Văn Em",   email: "em.hoang@edunexus.vn",     role: "Manager",  status: "active",   joined: "05/02/2026", courses: 8,  avatar: "HE" },
-  { id: 6, name: "Vũ Thị Phương",  email: "phuong.vu@edunexus.vn",    role: "Student",  status: "active",   joined: "20/05/2026", courses: 2,  avatar: "VP" },
-  { id: 7, name: "Đỗ Thanh Hải",   email: "hai.do@edunexus.vn",       role: "Teacher",  status: "active",   joined: "11/01/2026", courses: 4,  avatar: "DH" },
-];
-
-const STUDENT_PROGRESS = [
-  { id: 1, name: "Nguyễn Văn An",  progress: 78, lastActive: "2 giờ trước",  score: 82, essays: 2, status: "on-track"  },
-  { id: 2, name: "Trần Thị Mai",   progress: 92, lastActive: "Hôm nay",       score: 95, essays: 3, status: "excellent" },
-  { id: 3, name: "Lê Hoàng Long",  progress: 45, lastActive: "3 ngày trước",  score: 67, essays: 1, status: "at-risk"   },
-  { id: 4, name: "Phạm Thị Hoa",   progress: 61, lastActive: "Hôm qua",       score: 74, essays: 2, status: "on-track"  },
-  { id: 5, name: "Đinh Văn Khải",  progress: 88, lastActive: "4 giờ trước",   score: 91, essays: 3, status: "excellent" },
-  { id: 6, name: "Bùi Minh Quân",  progress: 32, lastActive: "5 ngày trước",  score: 55, essays: 0, status: "at-risk"   },
-];
-
-const CONTENT_SECTIONS = [
-  { id: 1, title: "Giới thiệu Machine Learning",       type: "video",    meta: "12:34",  status: "published", views: 2341 },
-  { id: 2, title: "Các thuật toán cơ bản",             type: "document", meta: "15 trang", status: "published", views: 1892 },
-  { id: 3, title: "Kiểm tra chương 1",                 type: "quiz",     meta: "20 câu", status: "published", views: 1654 },
-  { id: 4, title: "Neural Networks Deep Dive",          type: "video",    meta: "28:15",  status: "draft",     views: 0    },
-  { id: 5, title: "Flashcard: Thuật ngữ ML",           type: "flashcard",meta: "45 thẻ",status: "published", views: 987  },
-  { id: 6, title: "Bài luận: Ứng dụng AI trong Y tế", type: "essay",    meta: "1000 từ",status: "review",    views: 0    },
-];
-
-const CATEGORY_DATA = [
-  { name: "AI & Data", value: 35, color: "#5B6CF0" },
-  { name: "Web Dev",   value: 28, color: "#10B981" },
-  { name: "Marketing", value: 20, color: "#F59E0B" },
-  { name: "Finance",   value: 17, color: "#EF4444" },
-];
-
-const MY_COURSES = [
-  { id: 1, title: "Machine Learning Fundamentals", progress: 68, nextLesson: "Neural Networks Intro",  instructor: "Dr. Nguyễn Minh Tuấn", totalLessons: 42, completedLessons: 28, image: "photo-1555949963-aa79dcee981c" },
-  { id: 2, title: "React & TypeScript Mastery",    progress: 35, nextLesson: "Custom Hooks Deep Dive", instructor: "Trần Phương Linh",      totalLessons: 58, completedLessons: 20, image: "photo-1461749280684-dccba630e2f6" },
-];
-
-const FLASHCARDS = [
-  { front: "Supervised Learning",  back: "Phương pháp học có giám sát trong đó mô hình học từ dữ liệu được gán nhãn để dự đoán kết quả trên dữ liệu mới chính xác hơn." },
-  { front: "Overfitting",          back: "Hiện tượng mô hình học quá chi tiết từ dữ liệu huấn luyện, dẫn đến hiệu suất kém khi gặp dữ liệu chưa thấy bao giờ." },
-  { front: "Gradient Descent",     back: "Thuật toán tối ưu hóa lặp đi lặp lại để cực tiểu hóa hàm mất mát bằng cách di chuyển theo chiều ngược gradient." },
-  { front: "Regularization",       back: "Kỹ thuật giảm overfitting bằng cách thêm penalty vào hàm mất mát để ngăn chặn mô hình phức tạp hóa quá mức." },
-];
-
-const QUIZ_QUESTIONS = [
-  {
-    q: "Thuật toán nào được dùng phổ biến nhất trong bài toán phân loại nhị phân?",
-    options: ["Linear Regression", "Logistic Regression", "K-Means Clustering", "PCA"],
-    correct: 1,
-  },
-  {
-    q: "Gradient Descent là gì?",
-    options: [
-      "Một loại mạng thần kinh nhân tạo",
-      "Thuật toán tối ưu hóa giảm thiểu hàm mất mát",
-      "Phương pháp trực quan hóa dữ liệu",
-      "Kỹ thuật chuẩn hóa dữ liệu đầu vào",
-    ],
-    correct: 1,
-  },
-];
-
-const ESSAYS_TO_GRADE = [
-  { id: 1, student: "Nguyễn Văn An", title: "Ứng dụng AI trong Y tế",     submitted: "20/06/2026", words: 1024, status: "pending", score: null },
-  { id: 2, student: "Phạm Thị Hoa",  title: "Đạo đức trong AI",           submitted: "21/06/2026", words: 987,  status: "pending", score: null },
-  { id: 3, student: "Lê Hoàng Long", title: "AI và tương lai lao động",   submitted: "19/06/2026", words: 1156, status: "graded",  score: 78   },
-];
+const COURSES: any[] = [];
+const REVENUE_DATA: any[] = [];
+const USERS: any[] = [];
+const STUDENT_PROGRESS: any[] = [];
+const CONTENT_SECTIONS: any[] = [];
+const CATEGORY_DATA: any[] = [];
+const MY_COURSES: any[] = [];
+const FLASHCARDS: any[] = [];
+const QUIZ_QUESTIONS: any[] = [];
+const ESSAYS_TO_GRADE: any[] = [];
 
 // ───────────────────── NAV CONFIG ─────────────────────
 const SIDEBAR_NAV: Record<Role, { icon: React.ComponentType<{ size?: number }>; label: string; view: string }[]> = {
@@ -506,13 +438,15 @@ function LandingPage({ onLogin }: { onLogin: () => void }) {
 }
 
 // ───────────────────── SIDEBAR ─────────────────────
-function Sidebar({ role, currentView, onNavigate, onHome }: {
-  role: Role; currentView: string; onNavigate: (v: string) => void; onHome: () => void;
+function Sidebar({ role, currentView, onNavigate, onHome, user }: {
+  role: Role; currentView: string; onNavigate: (v: string) => void; onHome: () => void; user?: AuthUser | null;
 }) {
   const nav = SIDEBAR_NAV[role];
   const info = ROLES.find(r => r.id === role)!;
   const NAMES: Record<Role, string> = { guest: "", student: "Nguyễn Văn An", teacher: "Trần Thị Bích", sme: "Lê Minh Cường", manager: "Hoàng Văn Em", admin: "Admin" };
   const INITIALS: Record<Role, string> = { guest: "", student: "NA", teacher: "TB", sme: "LC", manager: "HE", admin: "AD" };
+  const displayName = user?.fullName || NAMES[role];
+  const displayInitials = displayName.split(/\s+/).filter(Boolean).slice(-2).map(part => part[0]).join("").toUpperCase() || INITIALS[role];
 
   return (
     <aside className="w-56 flex-shrink-0 flex flex-col h-full" style={{ backgroundColor: "#1C2448" }}>
@@ -543,10 +477,10 @@ function Sidebar({ role, currentView, onNavigate, onHome }: {
         </button>
         <div className="flex items-center gap-3 px-3 py-2">
           <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ backgroundColor: info.color }}>
-            {INITIALS[role]}
+            {user?.avatarUrl ? <img src={user.avatarUrl} alt={displayName} className="w-full h-full rounded-full object-cover" /> : displayInitials}
           </div>
           <div className="min-w-0">
-            <div className="text-xs font-semibold text-white truncate">{NAMES[role]}</div>
+            <div className="text-xs font-semibold text-white truncate">{displayName}</div>
             <div className="text-xs text-white/40 truncate">{info.label}</div>
           </div>
         </div>
@@ -575,11 +509,10 @@ function TopBar({ role, onRoleChange, onLogout }: { role: Role; onRoleChange: (r
         </button>
       )}
       <div className="relative">
-        <button onClick={() => setOpen(v => !v)} className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border text-sm font-semibold hover:bg-muted transition-colors">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border text-sm font-semibold">
           <span className="text-xs text-muted-foreground font-medium">Vai trò:</span>
           <span>{ROLES.find(r => r.id === role)?.label}</span>
-          {open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-        </button>
+        </div>
         {open && (
           <div className="absolute right-0 top-full mt-2 bg-white border border-border rounded-2xl shadow-2xl py-1.5 w-44 z-50">
             {ROLES.map(r => (
@@ -607,8 +540,36 @@ function StudentView({ view }: { view: string }) {
   const [qIdx, setQIdx] = useState(0);
   const [answer, setAnswer] = useState<number | null>(null);
   const [done, setDone] = useState(false);
+  const [library, setLibrary] = useState<any>({ stats: {}, enrollments: [], subscriptions: [] });
+  const [libraryError, setLibraryError] = useState("");
+  const [courseDetail, setCourseDetail] = useState<any>(null);
+  const [activeLesson, setActiveLesson] = useState<any>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  useEffect(() => {
+    const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token");
+    if (!token) return;
+    fetch(`${API_URL}/student/library`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async response => { const data = await response.json(); if (!response.ok) throw new Error(data.message); return data; })
+      .then(setLibrary)
+      .catch(error => setLibraryError(error.message || "Không thể tải thư viện"));
+  }, []);
+
+  async function openCourseDetail(courseId: number) {
+    const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token");
+    setDetailLoading(true); setLibraryError("");
+    try {
+      const response = await fetch(`${API_URL}/student/library/courses/${courseId}`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Không thể tải chi tiết khóa học");
+      setCourseDetail(data);
+      setActiveLesson(data.course?.lessons?.find((lesson: any) => lesson.contentUrl || lesson.content) ?? null);
+    } catch (error) { setLibraryError(error instanceof Error ? error.message : "Không thể tải chi tiết khóa học"); }
+    finally { setDetailLoading(false); }
+  }
 
   if (view === "flashcard") {
+    if (FLASHCARDS.length === 0) return <div className="p-8 text-sm text-muted-foreground">Chưa có flashcard.</div>;
     const card = FLASHCARDS[fcIdx];
     return (
       <div className="p-8 max-w-xl mx-auto">
@@ -645,6 +606,7 @@ function StudentView({ view }: { view: string }) {
   }
 
   if (view === "quiz") {
+    if (QUIZ_QUESTIONS.length === 0) return <div className="p-8 text-sm text-muted-foreground">Chưa có bài kiểm tra.</div>;
     if (done) {
       return (
         <div className="p-8 max-w-md mx-auto text-center">
@@ -708,32 +670,78 @@ function StudentView({ view }: { view: string }) {
   }
 
   if (view === "courses") {
+    if (courseDetail) {
+      const course = courseDetail.course;
+      return <div className="p-6 max-w-5xl mx-auto">
+        <button onClick={() => setCourseDetail(null)} className="mb-5 flex items-center gap-1 text-sm font-semibold text-[#5B6CF0]"><ArrowLeft size={15} /> Quay lại thư viện</button>
+        <div className="bg-white rounded-2xl border border-border p-6 mb-5">
+          <div className="flex items-start justify-between gap-4">
+            <div><Badge color="blue">{course.category?.name}</Badge><h2 className="text-2xl font-extrabold mt-3">{course.title}</h2><p className="text-sm text-muted-foreground mt-2">Giảng viên: {course.instructor?.fullName}</p></div>
+            <Badge color={courseDetail.status === "completed" ? "green" : "yellow"}>{courseDetail.status}</Badge>
+          </div>
+          <p className="text-sm leading-6 text-muted-foreground mt-5">{course.description || "Chưa có mô tả."}</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5 text-sm">
+            <div className="bg-muted rounded-xl p-3"><span className="text-muted-foreground">Trình độ</span><b className="block mt-1">{course.level}</b></div>
+            <div className="bg-muted rounded-xl p-3"><span className="text-muted-foreground">Tiến độ</span><b className="block mt-1">{Number(courseDetail.progress)}%</b></div>
+            <div className="bg-muted rounded-xl p-3"><span className="text-muted-foreground">Số bài học</span><b className="block mt-1">{course.lessons?.length ?? 0}</b></div>
+            <div className="bg-muted rounded-xl p-3"><span className="text-muted-foreground">Ngày đăng ký</span><b className="block mt-1">{new Date(courseDetail.enrolledAt).toLocaleDateString("vi-VN")}</b></div>
+          </div>
+        </div>
+        {activeLesson && <div className="bg-white rounded-2xl border border-border p-6 mb-5">
+          <div className="flex items-start justify-between gap-3 mb-4"><div><h3 className="font-bold">{activeLesson.title}</h3><p className="text-xs text-muted-foreground mt-1">{activeLesson.contentType} · {activeLesson.durationMinutes} phút</p></div><button onClick={() => setActiveLesson(null)} className="p-1.5 rounded-lg hover:bg-muted"><X size={16} /></button></div>
+          {activeLesson.contentUrl?.includes("youtube.com/watch") ? <iframe
+            src={activeLesson.contentUrl.replace("watch?v=", "embed/")}
+            title={activeLesson.title} className="w-full aspect-video rounded-xl border-0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen
+          /> : activeLesson.contentUrl ? <iframe src={activeLesson.contentUrl} title={activeLesson.title} className="w-full h-[520px] rounded-xl border border-border" /> : null}
+          {activeLesson.content && <p className="mt-4 text-sm leading-6 text-muted-foreground">{activeLesson.content}</p>}
+        </div>}
+        <div className="bg-white rounded-2xl border border-border p-6"><h3 className="font-bold mb-4">Nội dung khóa học</h3>
+          {(course.lessons ?? []).map((lesson: any, index: number) => <div key={lesson.id} className="flex items-center gap-3 py-3 border-b border-border last:border-0">
+            <span className="w-8 h-8 rounded-lg bg-[#EEF0FF] text-[#5B6CF0] flex items-center justify-center text-xs font-bold">{index + 1}</span>
+            <div className="flex-1"><p className="text-sm font-semibold">{lesson.title}</p><p className="text-xs text-muted-foreground">{lesson.contentType} · {lesson.durationMinutes} phút</p></div>
+            {(lesson.contentUrl || lesson.content) && <button onClick={() => setActiveLesson(lesson)} className="px-3 py-1.5 rounded-lg bg-[#1C2448] text-white text-xs font-bold">Xem nội dung</button>}
+            {lesson.isPreview && <Badge color="green">Xem trước</Badge>}
+          </div>)}
+          {(course.lessons ?? []).length === 0 && <p className="text-sm text-muted-foreground">Khóa học chưa có bài học.</p>}
+        </div>
+      </div>;
+    }
     return (
       <div className="p-6">
-        <h2 className="text-xl font-bold mb-6">Khóa học của tôi</h2>
+        <h2 className="text-xl font-bold mb-6">Student Library</h2>
+        {libraryError && <div className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-600">{libraryError}</div>}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+          <StatCard label="Tổng khóa học" value={library.stats.totalCourses ?? 0} icon={BookOpen} color="#5B6CF0" />
+          <StatCard label="Đang học" value={library.stats.activeCourses ?? 0} icon={Play} color="#10B981" />
+          <StatCard label="Hoàn thành" value={library.stats.completedCourses ?? 0} icon={CheckCircle2} color="#F59E0B" />
+          <StatCard label="Tiến độ TB" value={`${library.stats.averageProgress ?? 0}%`} icon={TrendingUp} color="#8B5CF6" />
+          <StatCard label="Gói còn hạn" value={library.stats.activePackages ?? 0} icon={Package} color="#EF4444" />
+        </div>
+        <h3 className="font-bold mb-3">Khóa học đã đăng ký</h3>
         <div className="grid md:grid-cols-2 gap-5">
-          {MY_COURSES.map(c => (
-            <div key={c.id} className="bg-white rounded-2xl border border-border overflow-hidden hover:shadow-lg transition-shadow">
-              <div className="h-40 bg-muted">
-                <img src={`https://images.unsplash.com/${c.image}?w=600&h=200&fit=crop&auto=format`} alt={c.title} className="w-full h-full object-cover" />
-              </div>
+          {library.enrollments.map((item: any) => {
+            const c = item.course;
+            return <div key={item.id} className="bg-white rounded-2xl border border-border overflow-hidden hover:shadow-lg transition-shadow">
               <div className="p-5">
                 <h3 className="font-bold text-[#1C2448] mb-1">{c.title}</h3>
-                <p className="text-xs text-muted-foreground mb-4">{c.instructor}</p>
+                <p className="text-xs text-muted-foreground mb-4">{c.instructor?.fullName} · {c.category?.name}</p>
                 <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-                  <span>{c.completedLessons}/{c.totalLessons} bài học</span>
-                  <span className="font-bold text-[#5B6CF0]">{c.progress}%</span>
+                  <span>{c.lessons?.length ?? 0} bài học · {item.status}</span>
+                  <span className="font-bold text-[#5B6CF0]">{Number(item.progress)}%</span>
                 </div>
-                <Bar2 value={c.progress} h="h-1.5" />
-                <div className="mt-4 flex items-center justify-between">
-                  <p className="text-xs text-muted-foreground">Tiếp: <span className="font-semibold text-foreground">{c.nextLesson}</span></p>
-                  <button className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1C2448] text-white text-xs font-bold rounded-lg hover:bg-[#2A3560] transition-colors">
-                    <Play size={11} fill="white" /> Tiếp tục
-                  </button>
-                </div>
+                <Bar2 value={Number(item.progress)} h="h-1.5" />
+                <button disabled={detailLoading} onClick={() => openCourseDetail(c.id)} className="mt-4 w-full py-2 rounded-xl bg-[#1C2448] text-white text-xs font-bold disabled:opacity-50">{detailLoading ? "Đang tải..." : "Xem chi tiết"}</button>
               </div>
-            </div>
-          ))}
+            </div>;
+          })}
+        </div>
+        <h3 className="font-bold mt-7 mb-3">Gói đã đăng ký</h3>
+        <div className="grid md:grid-cols-2 gap-4">
+          {library.subscriptions.map((item: any) => <div key={item.id} className="bg-white rounded-2xl border border-border p-5">
+            <div className="flex justify-between"><h4 className="font-bold">{item.package?.name}</h4><Badge color={item.status === "active" ? "green" : "gray"}>{item.status}</Badge></div>
+            <p className="text-xs text-muted-foreground mt-2">{item.package?.description}</p>
+            <p className="text-xs mt-3">Hết hạn: <b>{new Date(item.expiresAt).toLocaleDateString("vi-VN")}</b></p>
+          </div>)}
         </div>
       </div>
     );
@@ -810,7 +818,7 @@ function StudentView({ view }: { view: string }) {
           </div>
           <div className="bg-gradient-to-br from-[#EEF0FF] to-[#F0F5FF] rounded-2xl p-5 text-center mb-3">
             <div className="text-xs font-bold text-[#5B6CF0] mb-2 tracking-wide">THUẬT NGỮ</div>
-            <div className="text-xl font-extrabold text-[#1C2448]">{FLASHCARDS[0].front}</div>
+            <div className="text-xl font-extrabold text-[#1C2448]">{FLASHCARDS[0]?.front ?? "Chưa có flashcard"}</div>
           </div>
           <p className="text-xs text-center text-muted-foreground mb-3 font-medium">8 thẻ cần ôn luyện hôm nay</p>
           <button className="w-full py-2.5 bg-[#5B6CF0] text-white text-sm font-bold rounded-xl hover:bg-[#4A5BD0] transition-colors">Ôn luyện ngay</button>
@@ -1303,7 +1311,7 @@ const INIT_PLANS: PlanItem[] = [
   { id: 3, name: "Doanh nghiệp",price: "Liên hệ",  color: "#F59E0B", students: 120,  features: ["Tất cả tính năng Pro", "Quản lý nhóm", "Báo cáo nội bộ", "API tích hợp"] },
 ];
 
-const EMPTY_CLASS: ClassItem = { id: 0, name: "", course: COURSES[0].title, students: 0, capacity: 40, start: "", status: "upcoming" };
+const EMPTY_CLASS: ClassItem = { id: 0, name: "", course: "", students: 0, capacity: 40, start: "", status: "upcoming" };
 
 function ManagerView({ view }: { view: string }) {
   const [classes, setClasses] = useState<ClassItem[]>(INIT_CLASSES);
@@ -1313,7 +1321,7 @@ function ManagerView({ view }: { view: string }) {
 
   const [plans, setPlans] = useState<PlanItem[]>(INIT_PLANS);
   const [planModal, setPlanModal] = useState<{ open: boolean; item: PlanItem | null }>({ open: false, item: null });
-  const [planForm, setPlanForm] = useState<PlanItem>(INIT_PLANS[0]);
+  const [planForm, setPlanForm] = useState<PlanItem>({ id: 0, name: "", price: "", color: "#5B6CF0", students: 0, features: [] });
   const [featuresText, setFeaturesText] = useState("");
 
   function openAddClass() { setClassForm({ ...EMPTY_CLASS, id: Date.now() }); setClassModal({ open: true, mode: "add", item: EMPTY_CLASS }); }
@@ -1987,13 +1995,69 @@ function LoginPage({ onLogin, onGoRegister, onBack }: {
   const [selectedRole, setSelectedRole] = useState<Role>("student");
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"form" | "demo">("form");
+  const googleButtonRef = useRef<HTMLDivElement>(null);
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "685335819825-bm9cg5kepjnvkn0obit93m2qm7e2qv47.apps.googleusercontent.com";
 
-  function handleLogin(e: React.FormEvent) {
+  useEffect(() => {
+    const clientId = googleClientId;
+    if (!clientId) return;
+    const initialize = () => {
+      const google = (window as any).google;
+      if (!google || !googleButtonRef.current) return;
+      google.accounts.id.initialize({
+      client_id: clientId,
+      callback: async ({ credential }: { credential: string }) => {
+        setLoading(true);
+        try {
+          const response = await fetch(`${API_URL}/auth/google`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ credential }) });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.message || "Google Login thất bại");
+          const storage = remember ? localStorage : sessionStorage;
+          storage.setItem("edunexus_token", data.token);
+          storage.setItem("edunexus_user", JSON.stringify(data.user));
+          onLogin(getAuthenticatedRole(data.user));
+        } catch (err) { setError(err instanceof Error ? err.message : "Google Login thất bại"); }
+        finally { setLoading(false); }
+      },
+      });
+      googleButtonRef.current.innerHTML = "";
+      google.accounts.id.renderButton(googleButtonRef.current, {
+        type: "standard", theme: "outline", size: "large",
+        text: "signin_with", shape: "rectangular", width: 350,
+      });
+    };
+    if ((window as any).google) { initialize(); return; }
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.onload = initialize;
+    document.head.appendChild(script);
+  }, [googleClientId, remember, onLogin]);
+
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     if (!email || !password) { setError("Vui lòng nhập đầy đủ thông tin."); return; }
     setError("");
     setLoading(true);
-    setTimeout(() => { setLoading(false); onLogin(selectedRole); }, 1200);
+    try {
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Đăng nhập thất bại");
+      const storage = remember ? localStorage : sessionStorage;
+      storage.setItem("edunexus_token", data.token);
+      storage.setItem("edunexus_user", JSON.stringify(data.user));
+      (remember ? sessionStorage : localStorage).removeItem("edunexus_token");
+      (remember ? sessionStorage : localStorage).removeItem("edunexus_user");
+      onLogin(getAuthenticatedRole(data.user));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể kết nối máy chủ");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function handleDemoLogin(role: Role) {
@@ -2132,14 +2196,14 @@ function LoginPage({ onLogin, onGoRegister, onBack }: {
               </div>
 
               {/* Social */}
-              <div className="grid grid-cols-2 gap-3">
-                {[{ name: "Google", logo: "G", bg: "#fff" }, { name: "Microsoft", logo: "M", bg: "#fff" }].map(s => (
-                  <button key={s.name} type="button" className="flex items-center justify-center gap-2 py-3 border border-border rounded-xl text-sm font-semibold hover:bg-muted transition-colors">
-                    <span className="font-extrabold text-sm" style={{ color: s.name === "Google" ? "#EA4335" : "#0078D4" }}>{s.logo}</span>
-                    {s.name}
-                  </button>
-                ))}
-              </div>
+              {googleClientId ? (
+                <div ref={googleButtonRef} className="flex min-h-11 w-full items-center justify-center overflow-hidden rounded-xl" />
+              ) : (
+                <button type="button" onClick={() => setError("Thiếu VITE_GOOGLE_CLIENT_ID trong FE/.env")}
+                  className="w-full flex items-center justify-center gap-2 py-3 border border-border rounded-xl text-sm font-semibold hover:bg-muted transition-colors">
+                  <span className="font-extrabold text-sm text-[#EA4335]">G</span> Google
+                </button>
+              )}
             </form>
           )}
 
@@ -2442,13 +2506,49 @@ function RegisterPage({ onLogin, onGoLogin, onBack }: {
 type Screen = "landing" | "login" | "register" | "app";
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>("landing");
-  const [role, setRole] = useState<Role>("student");
-  const [view, setView] = useState("dashboard");
+  const getStoredToken = () => sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token");
+  const getStoredUser = (): AuthUser | null => {
+    const raw = sessionStorage.getItem("edunexus_user") || localStorage.getItem("edunexus_user");
+    try { return raw ? JSON.parse(raw) : null; } catch { return null; }
+  };
+  const initialUser = getStoredUser();
+  const [screen, setScreen] = useState<Screen>(() => getStoredToken() && initialUser ? "app" : "landing");
+  const [role, setRole] = useState<Role>(() => {
+    try { return initialUser ? getAuthenticatedRole(initialUser) : "student"; } catch { return "student"; }
+  });
+  const [authUser, setAuthUser] = useState<AuthUser | null>(initialUser);
+  const [view, setView] = useState(() => localStorage.getItem("edunexus_view") || sessionStorage.getItem("edunexus_view") || "dashboard");
+
+  useEffect(() => {
+    const token = getStoredToken();
+    if (!token) return;
+    fetch(`${API_URL}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async response => {
+        if (!response.ok) throw new Error("Phiên đăng nhập đã hết hạn");
+        const user = await response.json();
+        setAuthUser(user);
+        setRole(getAuthenticatedRole(user));
+        const storage = localStorage.getItem("edunexus_token") ? localStorage : sessionStorage;
+        storage.setItem("edunexus_user", JSON.stringify(user));
+      })
+      .catch(() => {
+        localStorage.removeItem("edunexus_token"); localStorage.removeItem("edunexus_user"); localStorage.removeItem("edunexus_view");
+        sessionStorage.removeItem("edunexus_token"); sessionStorage.removeItem("edunexus_user"); sessionStorage.removeItem("edunexus_view");
+        setAuthUser(null); setScreen("login");
+      });
+  }, []);
+
+  useEffect(() => {
+    if (screen !== "app") return;
+    const storage = localStorage.getItem("edunexus_token") ? localStorage : sessionStorage;
+    storage.setItem("edunexus_view", view);
+  }, [screen, view]);
 
   function loginAs(r: Role) {
+    const rawUser = sessionStorage.getItem("edunexus_user") || localStorage.getItem("edunexus_user");
+    try { setAuthUser(rawUser ? JSON.parse(rawUser) : null); } catch { setAuthUser(null); }
     setRole(r);
-    setView("dashboard");
+    setView(localStorage.getItem("edunexus_view") || sessionStorage.getItem("edunexus_view") || "dashboard");
     setScreen("app");
   }
 
@@ -2493,9 +2593,14 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-      <Sidebar role={role} currentView={view} onNavigate={setView} onHome={() => setScreen("landing")} />
+      <Sidebar role={role} user={authUser} currentView={view} onNavigate={setView} onHome={() => setScreen("landing")} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar role={role} onRoleChange={(r) => { if (r === "guest") setScreen("landing"); else changeRole(r); }} onLogout={() => setScreen("login")} />
+        <TopBar role={role} onRoleChange={(r) => { if (r === "guest") setScreen("landing"); else changeRole(r); }} onLogout={() => {
+          localStorage.removeItem("edunexus_token"); localStorage.removeItem("edunexus_user");
+          localStorage.removeItem("edunexus_view");
+          sessionStorage.removeItem("edunexus_token"); sessionStorage.removeItem("edunexus_user"); sessionStorage.removeItem("edunexus_view");
+          setAuthUser(null); setScreen("login");
+        }} />
         <main className="flex-1 overflow-auto" style={{ backgroundColor: "#F8F9FD" }}>
           {renderContent()}
         </main>
