@@ -1,4 +1,4 @@
-const { Enrollment, Course, Category, User, Lesson, UserSubscription, SubscriptionPackage } = require('../models');
+const { Enrollment, Course, Category, User, Lesson, UserSubscription, SubscriptionPackage, CourseModule, ModuleContent } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 
 exports.getLibrary = asyncHandler(async (req, res) => {
@@ -37,6 +37,9 @@ exports.getCourseDetail = asyncHandler(async (req, res) => {
       { model: Category, as: 'category' },
       { model: User, as: 'instructor', attributes: ['id', 'fullName', 'email', 'avatarUrl'] },
       { model: Lesson, as: 'lessons' },
+      { model: CourseModule, as: 'modules', where: { status: 'published' }, required: false, include: [
+        { model: ModuleContent, as: 'contents', where: { status: 'published' }, required: false },
+      ] },
     ] }],
     order: [[{ model: Course, as: 'course' }, { model: Lesson, as: 'lessons' }, 'orderIndex', 'ASC']],
   });

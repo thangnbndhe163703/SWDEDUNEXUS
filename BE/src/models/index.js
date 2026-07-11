@@ -13,6 +13,7 @@ const ModuleContent = require('./ModuleContent')(sequelize);
 const CourseSme = require('./CourseSme')(sequelize);
 const Assignment = require('./Assignment')(sequelize);
 const AssignmentSubmission = require('./AssignmentSubmission')(sequelize);
+const LessonAttachment = require('./LessonAttachment')(sequelize);
 
 Role.hasMany(User, { foreignKey: 'roleId', as: 'users' });
 User.belongsTo(Role, { foreignKey: 'roleId', as: 'role' });
@@ -24,6 +25,8 @@ Course.belongsTo(User, { foreignKey: 'instructorId', as: 'instructor' });
 
 Course.hasMany(Lesson, { foreignKey: 'courseId', as: 'lessons', onDelete: 'CASCADE' });
 Lesson.belongsTo(Course, { foreignKey: 'courseId', as: 'course' });
+Lesson.hasMany(LessonAttachment, { foreignKey: 'lessonId', as: 'attachments', onDelete: 'CASCADE' });
+LessonAttachment.belongsTo(Lesson, { foreignKey: 'lessonId', as: 'lesson' });
 
 User.belongsToMany(Course, { through: Enrollment, foreignKey: 'userId', otherKey: 'courseId', as: 'enrolledCourses' });
 Course.belongsToMany(User, { through: Enrollment, foreignKey: 'courseId', otherKey: 'userId', as: 'students' });
@@ -54,4 +57,4 @@ AssignmentSubmission.belongsTo(Assignment, { foreignKey: 'assignmentId', as: 'as
 User.hasMany(AssignmentSubmission, { foreignKey: 'studentId', as: 'assignmentSubmissions' });
 AssignmentSubmission.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
 
-module.exports = { sequelize, Role, User, Category, Course, Lesson, Enrollment, SubscriptionPackage, UserSubscription, CourseModule, ModuleContent, CourseSme, Assignment, AssignmentSubmission };
+module.exports = { sequelize, Role, User, Category, Course, Lesson, Enrollment, SubscriptionPackage, UserSubscription, CourseModule, ModuleContent, CourseSme, Assignment, AssignmentSubmission, LessonAttachment };
