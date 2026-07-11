@@ -8,6 +8,9 @@ const Lesson = require('./Lesson')(sequelize);
 const Enrollment = require('./Enrollment')(sequelize);
 const SubscriptionPackage = require('./SubscriptionPackage')(sequelize);
 const UserSubscription = require('./UserSubscription')(sequelize);
+const CourseModule = require('./CourseModule')(sequelize);
+const ModuleContent = require('./ModuleContent')(sequelize);
+const CourseSme = require('./CourseSme')(sequelize);
 
 Role.hasMany(User, { foreignKey: 'roleId', as: 'users' });
 User.belongsTo(Role, { foreignKey: 'roleId', as: 'role' });
@@ -32,4 +35,11 @@ UserSubscription.belongsTo(User, { foreignKey: 'userId', as: 'student' });
 SubscriptionPackage.hasMany(UserSubscription, { foreignKey: 'packageId', as: 'subscriptions' });
 UserSubscription.belongsTo(SubscriptionPackage, { foreignKey: 'packageId', as: 'package' });
 
-module.exports = { sequelize, Role, User, Category, Course, Lesson, Enrollment, SubscriptionPackage, UserSubscription };
+Course.belongsToMany(User, { through: CourseSme, foreignKey: 'courseId', otherKey: 'userId', as: 'smes' });
+User.belongsToMany(Course, { through: CourseSme, foreignKey: 'userId', otherKey: 'courseId', as: 'assignedCourses' });
+Course.hasMany(CourseModule, { foreignKey: 'courseId', as: 'modules', onDelete: 'CASCADE' });
+CourseModule.belongsTo(Course, { foreignKey: 'courseId', as: 'course' });
+CourseModule.hasMany(ModuleContent, { foreignKey: 'moduleId', as: 'contents', onDelete: 'CASCADE' });
+ModuleContent.belongsTo(CourseModule, { foreignKey: 'moduleId', as: 'module' });
+
+module.exports = { sequelize, Role, User, Category, Course, Lesson, Enrollment, SubscriptionPackage, UserSubscription, CourseModule, ModuleContent, CourseSme };

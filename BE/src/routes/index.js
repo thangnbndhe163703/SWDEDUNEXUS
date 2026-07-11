@@ -6,6 +6,7 @@ router.use('/auth', require('./authRoutes'));
 router.use('/users', require('./userRoutes'));
 router.use('/courses', require('./courseRoutes'));
 router.use('/student', require('./studentRoutes'));
+router.use('/sme', require('./smeRoutes'));
 router.get('/categories', asyncHandler(async (_req, res) => res.json(await Category.findAll({ order: [['name', 'ASC']] }))));
 
 module.exports = router;
