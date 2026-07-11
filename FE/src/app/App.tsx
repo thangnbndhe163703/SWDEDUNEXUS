@@ -1138,6 +1138,48 @@ function SMEView({ view }: { view: string }) {
   const [modal, setModal] = useState<{ open: boolean; mode: "add" | "edit"; item: ContentItem }>({ open: false, mode: "add", item: EMPTY_CONTENT });
   const [confirmId, setConfirmId] = useState<number | null>(null);
   const [form, setForm] = useState<ContentItem>(EMPTY_CONTENT);
+  const [smeCourses, setSmeCourses] = useState<any[]>([]);
+  const [smeStructure, setSmeStructure] = useState<any>(null);
+  const [smeError, setSmeError] = useState("");
+
+  useEffect(() => {
+    const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token");
+    if (!token) return;
+    fetch(`${API_URL}/sme/courses`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async response => { const data = await response.json(); if (!response.ok) throw new Error(data.message); return data; })
+      .then(setSmeCourses).catch(error => setSmeError(error.message));
+  }, []);
+
+  async function openSmeStructure(courseId: number) {
+    const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token");
+    const response = await fetch(`${API_URL}/sme/courses/${courseId}/structure`, { headers: { Authorization: `Bearer ${token}` } });
+    const data = await response.json();
+    if (!response.ok) { setSmeError(data.message); return; }
+    setSmeStructure(data);
+  }
+
+  if (smeStructure) return <div className="p-6 max-w-6xl mx-auto">
+    <button onClick={() => setSmeStructure(null)} className="mb-5 flex items-center gap-1 text-sm font-semibold text-[#5B6CF0]"><ArrowLeft size={15} /> Danh sách khóa học</button>
+    <div className="bg-white border border-border rounded-2xl p-6 mb-5"><Badge color="blue">{smeStructure.category?.name}</Badge><h2 className="text-2xl font-extrabold mt-3">{smeStructure.title}</h2><p className="text-sm text-muted-foreground mt-2">{smeStructure.description}</p></div>
+    <div className="space-y-4">{(smeStructure.modules ?? []).map((module: any) => <div key={module.id} className="bg-white border border-border rounded-2xl overflow-hidden">
+      <div className="p-5 bg-muted/40 flex justify-between"><div><h3 className="font-bold">{module.orderIndex}. {module.title}</h3><p className="text-xs text-muted-foreground mt-1">{module.description}</p></div><Badge color={module.status === "published" ? "green" : "gray"}>{module.status}</Badge></div>
+      <div className="divide-y divide-border">{(module.contents ?? []).map((content: any) => <div key={content.id} className="p-4 flex items-center gap-3">
+        <ContentIcon type={content.type === "lesson" ? "video" : content.type === "question" ? "quiz" : content.type} />
+        <div className="flex-1"><p className="text-sm font-semibold">{content.title}</p><p className="text-xs text-muted-foreground mt-0.5">{content.type} · {content.description}</p></div>
+        <Badge color={content.status === "published" ? "green" : "gray"}>{content.status}</Badge>
+      </div>)}</div>
+    </div>)}</div>
+  </div>;
+
+  if (view === "dashboard" || view === "content") return <div className="p-6">
+    <h2 className="text-xl font-bold">Khóa học SME phụ trách</h2><p className="text-sm text-muted-foreground mt-1 mb-6">{smeCourses.length} khóa học được phân công</p>
+    {smeError && <div className="mb-4 bg-red-50 text-red-600 rounded-xl p-3 text-sm">{smeError}</div>}
+    <div className="grid md:grid-cols-2 gap-5">{smeCourses.map(course => <div key={course.id} className="bg-white border border-border rounded-2xl p-5">
+      <div className="flex justify-between gap-3"><Badge color="blue">{course.category?.name}</Badge><Badge color={course.status === "published" ? "green" : "gray"}>{course.status}</Badge></div>
+      <h3 className="font-bold text-lg mt-4">{course.title}</h3><p className="text-xs text-muted-foreground mt-2">{course.modules?.length ?? 0} modules · cập nhật {new Date(course.updatedAt).toLocaleDateString("vi-VN")}</p>
+      <button onClick={() => openSmeStructure(course.id)} className="mt-4 w-full py-2.5 bg-[#1C2448] text-white rounded-xl text-sm font-bold">Xem cấu trúc khóa học</button>
+    </div>)}</div>
+  </div>;
 
   function openAdd() { setForm({ ...EMPTY_CONTENT, id: Date.now() }); setModal({ open: true, mode: "add", item: EMPTY_CONTENT }); }
   function openEdit(item: ContentItem) { setForm(item); setModal({ open: true, mode: "edit", item }); }

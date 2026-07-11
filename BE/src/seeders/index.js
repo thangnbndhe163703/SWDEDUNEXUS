@@ -1,5 +1,5 @@
 const bcrypt = require('bcryptjs');
-const { sequelize, Role, User, Category, Course, Lesson, Enrollment, SubscriptionPackage, UserSubscription } = require('../models');
+const { sequelize, Role, User, Category, Course, Lesson, Enrollment, SubscriptionPackage, UserSubscription, CourseModule, ModuleContent, CourseSme } = require('../models');
 
 async function seedDatabase({ force = false } = {}) {
   if (force) await sequelize.sync({ force: true });
@@ -113,4 +113,31 @@ async function seedStudentLibrary() {
   console.log('Student Library test data is ready.');
 }
 
-module.exports = { seedDatabase, seedStudentLibrary };
+async function seedSmeCourses() {
+  const smeRole = await Role.findOne({ where: { name: 'sme' } });
+  if (!smeRole) return;
+  const smes = await User.findAll({ where: { roleId: smeRole.id } });
+  const courses = await Course.findAll({ order: [['id', 'ASC']], limit: 2 });
+  for (const sme of smes) for (const course of courses) {
+    await CourseSme.findOrCreate({ where: { userId: sme.id, courseId: course.id } });
+  }
+  const contentTypes = ['lesson', 'flashcard', 'assignment', 'question', 'quiz'];
+  for (const course of courses) {
+    for (let moduleIndex = 1; moduleIndex <= 2; moduleIndex += 1) {
+      const [module] = await CourseModule.findOrCreate({
+        where: { courseId: course.id, orderIndex: moduleIndex },
+        defaults: { title: `Module ${moduleIndex}: ${moduleIndex === 1 ? 'Nền tảng' : 'Thực hành'}`, description: `Nội dung module ${moduleIndex} của ${course.title}`, status: 'published' },
+      });
+      for (let index = 0; index < contentTypes.length; index += 1) {
+        const type = contentTypes[index];
+        await ModuleContent.findOrCreate({
+          where: { moduleId: module.id, type, orderIndex: index + 1 },
+          defaults: { title: `${type[0].toUpperCase()}${type.slice(1)} mẫu`, description: `Dữ liệu test ${type} trong ${module.title}`, status: moduleIndex === 1 ? 'published' : 'draft' },
+        });
+      }
+    }
+  }
+  console.log('SME course structure test data is ready.');
+}
+
+module.exports = { seedDatabase, seedStudentLibrary, seedSmeCourses };
