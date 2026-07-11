@@ -6,6 +6,8 @@ const Category = require('./Category')(sequelize);
 const Course = require('./Course')(sequelize);
 const Lesson = require('./Lesson')(sequelize);
 const Enrollment = require('./Enrollment')(sequelize);
+const SubscriptionPackage = require('./SubscriptionPackage')(sequelize);
+const UserSubscription = require('./UserSubscription')(sequelize);
 
 Role.hasMany(User, { foreignKey: 'roleId', as: 'users' });
 User.belongsTo(Role, { foreignKey: 'roleId', as: 'role' });
@@ -25,4 +27,9 @@ Enrollment.belongsTo(User, { foreignKey: 'userId', as: 'student' });
 Course.hasMany(Enrollment, { foreignKey: 'courseId', as: 'enrollments' });
 Enrollment.belongsTo(Course, { foreignKey: 'courseId', as: 'course' });
 
-module.exports = { sequelize, Role, User, Category, Course, Lesson, Enrollment };
+User.hasMany(UserSubscription, { foreignKey: 'userId', as: 'subscriptions' });
+UserSubscription.belongsTo(User, { foreignKey: 'userId', as: 'student' });
+SubscriptionPackage.hasMany(UserSubscription, { foreignKey: 'packageId', as: 'subscriptions' });
+UserSubscription.belongsTo(SubscriptionPackage, { foreignKey: 'packageId', as: 'package' });
+
+module.exports = { sequelize, Role, User, Category, Course, Lesson, Enrollment, SubscriptionPackage, UserSubscription };
