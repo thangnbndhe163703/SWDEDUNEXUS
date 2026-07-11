@@ -9,6 +9,7 @@ router.use('/student', require('./studentRoutes'));
 router.use('/sme', require('./smeRoutes'));
 router.use('/assignments', require('./assignmentRoutes'));
 router.use('/student-assignments', require('./studentAssignmentRoutes'));
+router.use('/sme-lessons', require('./smeLessonRoutes'));
 router.get('/categories', asyncHandler(async (_req, res) => res.json(await Category.findAll({ order: [['name', 'ASC']] }))));
 
 module.exports = router;

@@ -1,0 +1,11 @@
+const router = require('express').Router();
+const controller = require('../controllers/smeLessonController');
+const { protect, authorize } = require('../middleware/authMiddleware');
+router.use(protect, authorize('sme'));
+router.get('/', controller.list);
+router.post('/generate', controller.generate);
+router.post('/extract-youtube', controller.extractYoutube);
+router.get('/:id', controller.detail);
+router.post('/', controller.create);
+router.put('/:id', controller.update);
+module.exports = router;
