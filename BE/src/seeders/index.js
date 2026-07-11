@@ -1,5 +1,5 @@
 const bcrypt = require('bcryptjs');
-const { sequelize, Role, User, Category, Course, Lesson, Enrollment, SubscriptionPackage, UserSubscription, CourseModule, ModuleContent, CourseSme, Assignment } = require('../models');
+const { sequelize, Role, User, Category, Course, Lesson, Enrollment, SubscriptionPackage, UserSubscription, CourseModule, ModuleContent, CourseSme, Assignment, Question } = require('../models');
 
 async function seedDatabase({ force = false } = {}) {
   if (force) await sequelize.sync({ force: true });
@@ -144,6 +144,7 @@ async function seedSmeCourses() {
       rubric: [{ criterion: 'Kiến thức', description: 'Áp dụng chính xác kiến thức khóa học', points: 40 }, { criterion: 'Thực hành', description: 'Sản phẩm hoàn chỉnh và có minh chứng', points: 40 }, { criterion: 'Trình bày', description: 'Bố cục rõ ràng, dễ hiểu', points: 20 }],
       maxScore: 100, status: 'published', dueAt: new Date(Date.now() + 14 * 86400000),
     } });
+    await Question.findOrCreate({ where: { smeId: sme.id, courseId: course.id, content: `Khái niệm cốt lõi nào quan trọng nhất trong ${course.title}?` }, defaults: { moduleId: module?.id, type: 'single_choice', options: ['Nắm vững nền tảng', 'Bỏ qua lý thuyết', 'Chỉ học thuộc lòng', 'Không cần thực hành'], correctAnswer: 0, explanation: 'Nền tảng vững giúp vận dụng kiến thức chính xác.', difficulty: 'easy', tags: ['foundation'], status: 'published' } });
   }
   console.log('SME course structure test data is ready.');
 }
