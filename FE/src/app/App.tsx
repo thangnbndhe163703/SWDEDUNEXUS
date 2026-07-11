@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   LayoutDashboard, Users, BookOpen, BarChart3, Settings,
   Bell, Search, Plus, Edit, Trash2, Play, CheckCircle2,
@@ -22,6 +24,24 @@ import {
 type Role = "guest" | "student" | "teacher" | "sme" | "manager" | "admin";
 type AuthUser = { fullName?: string; email?: string; avatarUrl?: string; role?: { name?: string } };
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
+
+function getYoutubeEmbedUrl(value?: string): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    let videoId = url.hostname.includes("youtu.be") ? url.pathname.split("/").filter(Boolean)[0] : url.searchParams.get("v");
+    if (!videoId && (url.pathname.includes("/shorts/") || url.pathname.includes("/embed/"))) videoId = url.pathname.split("/").filter(Boolean).pop() ?? null;
+    return videoId ? `https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}` : null;
+  } catch { return null; }
+}
+
+function normalizeLessonMarkdown(value?: string): string {
+  return (value || "")
+    .replace(/\s+(#{1,6})\s+/g, "\n\n$1 ")
+    .replace(/\s+-\s+(?=[A-ZÀ-Ỹ0-9*])/g, "\n- ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 
 function getAuthenticatedRole(user: any): Role {
   const role = String(user?.role?.name ?? user?.role ?? "").toLowerCase();
@@ -757,11 +777,26 @@ function StudentView({ view }: { view: string }) {
         {(course.modules ?? []).length > 0 && <div className="bg-white rounded-2xl border border-border p-6 mb-5"><h3 className="font-bold mb-4">Modules</h3><div className="space-y-3">{course.modules.map((module:any)=><div key={module.id} className="border border-border rounded-xl overflow-hidden"><div className="bg-muted/40 p-4"><b className="text-sm">{module.orderIndex}. {module.title}</b><p className="text-xs text-muted-foreground mt-1">{module.description}</p></div><div className="divide-y divide-border">{(module.contents??[]).map((content:any)=><div key={content.id} className="p-3 flex items-center gap-3"><ContentIcon type={content.type==="lesson"?"video":content.type==="question"?"quiz":content.type}/><div><p className="text-sm font-semibold">{content.title}</p><p className="text-xs text-muted-foreground">{content.type} · {content.description}</p></div></div>)}</div></div>)}</div></div>}
         {activeLesson && <div className="bg-white rounded-2xl border border-border p-6 mb-5">
           <div className="flex items-start justify-between gap-3 mb-4"><div><h3 className="font-bold">{activeLesson.title}</h3><p className="text-xs text-muted-foreground mt-1">{activeLesson.contentType} · {activeLesson.durationMinutes} phút</p></div><button onClick={() => setActiveLesson(null)} className="p-1.5 rounded-lg hover:bg-muted"><X size={16} /></button></div>
-          {activeLesson.contentUrl?.includes("youtube.com/watch") ? <iframe
-            src={activeLesson.contentUrl.replace("watch?v=", "embed/")}
+          {getYoutubeEmbedUrl(activeLesson.contentUrl) ? <iframe
+            src={getYoutubeEmbedUrl(activeLesson.contentUrl)!}
             title={activeLesson.title} className="w-full aspect-video rounded-xl border-0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen
           /> : activeLesson.contentUrl ? <iframe src={activeLesson.contentUrl} title={activeLesson.title} className="w-full h-[520px] rounded-xl border border-border" /> : null}
-          {activeLesson.content && <p className="mt-4 text-sm leading-6 text-muted-foreground">{activeLesson.content}</p>}
+          {getYoutubeEmbedUrl(activeLesson.contentUrl) && <a href={activeLesson.contentUrl} target="_blank" rel="noreferrer" className="inline-flex mt-3 text-xs font-bold text-[#5B6CF0] hover:underline">Không phát được? Mở trên YouTube</a>}
+          {activeLesson.content && <div className="mt-5 border-t border-border pt-5 text-foreground">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+              h1: ({children}) => <h1 className="text-2xl font-extrabold mt-6 mb-3 first:mt-0">{children}</h1>,
+              h2: ({children}) => <h2 className="text-xl font-bold mt-6 mb-3 text-[#1C2448]">{children}</h2>,
+              h3: ({children}) => <h3 className="text-base font-bold mt-5 mb-2 text-[#1C2448]">{children}</h3>,
+              p: ({children}) => <p className="text-sm leading-7 mb-3 text-muted-foreground">{children}</p>,
+              ul: ({children}) => <ul className="list-disc pl-6 space-y-2 mb-4 text-sm text-muted-foreground">{children}</ul>,
+              ol: ({children}) => <ol className="list-decimal pl-6 space-y-2 mb-4 text-sm text-muted-foreground">{children}</ol>,
+              li: ({children}) => <li className="leading-6 pl-1">{children}</li>,
+              strong: ({children}) => <strong className="font-bold text-foreground">{children}</strong>,
+              blockquote: ({children}) => <blockquote className="border-l-4 border-[#5B6CF0] bg-[#EEF0FF] px-4 py-3 my-4 rounded-r-xl">{children}</blockquote>,
+              code: ({children}) => <code className="bg-muted px-1.5 py-0.5 rounded text-xs text-[#5B6CF0]">{children}</code>,
+              hr: () => <hr className="my-6 border-border" />,
+            }}>{normalizeLessonMarkdown(activeLesson.content)}</ReactMarkdown>
+          </div>}
         </div>}
         <div className="bg-white rounded-2xl border border-border p-6"><h3 className="font-bold mb-4">Nội dung khóa học</h3>
           {(course.lessons ?? []).map((lesson: any, index: number) => <div key={lesson.id} className="flex items-center gap-3 py-3 border-b border-border last:border-0">

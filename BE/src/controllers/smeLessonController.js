@@ -73,7 +73,7 @@ exports.extractYoutube = asyncHandler(async (req, res) => {
   }
   const transcript = segments.map(item => item.text).join(' ').replace(/\s+/g, ' ').trim();
   if (!transcript) return res.status(422).json({ message: 'Video không có transcript khả dụng' });
-  const prompt = `Chuyển transcript YouTube sau thành lesson summary tiếng Việt ở Markdown. Phải có: tiêu đề, mục tiêu học tập, ý chính theo heading, ví dụ/ghi chú quan trọng, câu hỏi ôn tập và tóm tắt. Loại bỏ từ đệm và câu lặp. TRANSCRIPT:\n${transcript.slice(0, 90000)}`;
+  const prompt = `Chuyển transcript YouTube sau thành lesson summary tiếng Việt ở Markdown. Phải có: tiêu đề, mục tiêu học tập, ý chính theo heading, ví dụ/ghi chú quan trọng, câu hỏi ôn tập và tóm tắt. Mỗi heading phải nằm trên một dòng riêng, có một dòng trống trước và sau heading. Mỗi bullet phải nằm trên dòng riêng. Không viết toàn bộ Markdown trên một dòng. Loại bỏ từ đệm và câu lặp. TRANSCRIPT:\n${transcript.slice(0, 90000)}`;
   const schema = { type: 'OBJECT', required: ['title', 'markdownContent', 'summary'], properties: { title: { type: 'STRING' }, markdownContent: { type: 'STRING' }, summary: { type: 'STRING' } } };
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || 'gemini-3.5-flash'}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', responseSchema: schema } }) });
   const data = await response.json();
