@@ -71,6 +71,7 @@ const SIDEBAR_NAV: Record<Role, { icon: React.ComponentType<{ size?: number }>; 
     { icon: LayoutDashboard, label: "Tổng quan",         view: "dashboard" },
     { icon: Layers,           label: "Nội dung khóa học", view: "content"   },
     { icon: FileText,         label: "Assignments",       view: "assignments" },
+    { icon: Film,             label: "Lesson Editor",     view: "lessons" },
     { icon: Upload,           label: "Xuất bản",          view: "publish"   },
     { icon: Eye,              label: "Xem trước",          view: "preview"   },
   ],
@@ -593,6 +594,23 @@ function StudentView({ view }: { view: string }) {
     finally { setDetailLoading(false); }
   }
 
+  if (view === "lessons" && false) return <div className="p-6 max-w-6xl mx-auto">
+    <div className="flex justify-between mb-6"><div><h2 className="text-xl font-bold">Lesson Editor</h2><p className="text-sm text-muted-foreground mt-1">Video, Markdown và file đính kèm</p></div><button onClick={() => { setLessonForm({ id: null, courseId: smeCourses[0]?.id ?? "", title: "", contentType: "document", contentUrl: "", content: "", durationMinutes: 15, orderIndex: lessons.length + 1, isPreview: false, attachments: [] }); setLessonEditing(true); }} className="px-4 py-2 bg-[#1C2448] text-white rounded-xl text-sm font-bold"><Plus size={14} className="inline mr-1" /> Thêm lesson</button></div>
+    {smeError && <div className="mb-4 bg-red-50 text-red-600 p-3 rounded-xl text-sm">{smeError}</div>}
+    <div className="bg-white border border-border rounded-2xl overflow-hidden">{lessons.map(lesson => <button key={lesson.id} onClick={() => { setLessonForm({ ...lesson, contentUrl: lesson.contentUrl ?? "", content: lesson.content ?? "", attachments: lesson.attachments ?? [] }); setLessonEditing(true); }} className="w-full p-4 flex items-center gap-3 text-left border-b border-border last:border-0 hover:bg-muted/30"><ContentIcon type={lesson.contentType} /><div className="flex-1"><p className="font-semibold text-sm">{lesson.title}</p><p className="text-xs text-muted-foreground mt-1">{lesson.course?.title} · {lesson.contentType} · {lesson.durationMinutes} phút · {lesson.attachments?.length ?? 0} files</p></div><Badge color={lesson.isPreview ? "green" : "gray"}>{lesson.isPreview ? "Preview" : "Private"}</Badge><Edit size={14} /></button>)}</div>
+    {lessons.length === 0 && <div className="py-16 text-center text-sm text-muted-foreground">Chưa có lesson. Nhấn “Thêm lesson” để bắt đầu.</div>}
+    {lessonEditing && <Modal title={lessonForm.id ? "Edit Lesson" : "AI Lesson Staging"} onClose={() => setLessonEditing(false)}><div className="space-y-4 max-h-[78vh] overflow-auto pr-1">
+      <div className="bg-[#EEF0FF] rounded-xl p-4"><label className="text-xs font-bold">Tạo lesson text bằng Gemini</label><div className="flex gap-2 mt-2"><input value={lessonAiTopic} onChange={e => setLessonAiTopic(e.target.value)} placeholder="Ví dụ: Neural Network cơ bản" className="flex-1 border rounded-xl px-3 text-sm" /><button onClick={generateLesson} disabled={!lessonAiTopic || lessonAiLoading} className="px-3 py-2 bg-[#5B6CF0] text-white rounded-xl text-xs font-bold disabled:opacity-50">{lessonAiLoading ? "Đang tạo..." : "Tạo bằng AI"}</button></div><p className="text-xs text-muted-foreground mt-2">AI chỉ tạo bản nháp. SME có thể chỉnh trước khi lưu.</p></div>
+      <FormField label="Khóa học"><FSelect value={String(lessonForm.courseId)} onChange={v => setLessonForm((f:any)=>({...f,courseId:v}))}>{smeCourses.map(c=><option key={c.id} value={c.id}>{c.title}</option>)}</FSelect></FormField>
+      <div className="grid grid-cols-2 gap-3"><FormField label="Tiêu đề"><FInput value={lessonForm.title} onChange={v=>setLessonForm((f:any)=>({...f,title:v}))} /></FormField><FormField label="Loại"><FSelect value={lessonForm.contentType} onChange={v=>setLessonForm((f:any)=>({...f,contentType:v}))}><option value="video">Video</option><option value="document">Markdown</option><option value="quiz">Quiz</option><option value="flashcard">Flashcard</option><option value="essay">Essay</option></FSelect></FormField></div>
+      <FormField label="Video / Content URL"><FInput value={lessonForm.contentUrl} onChange={v=>setLessonForm((f:any)=>({...f,contentUrl:v}))} placeholder="https://youtube.com/watch?v=..." /></FormField>
+      <div className="grid md:grid-cols-2 gap-3"><div><label className="text-xs font-bold">Markdown content</label><textarea value={lessonForm.content} onChange={e=>setLessonForm((f:any)=>({...f,content:e.target.value}))} className="mt-2 w-full min-h-64 border border-border rounded-xl p-3 text-sm font-mono" /></div><div><label className="text-xs font-bold">Preview</label><div className="mt-2 min-h-64 border border-border rounded-xl p-4 text-sm whitespace-pre-wrap bg-muted/20">{lessonForm.content || "Markdown preview sẽ hiển thị ở đây"}</div></div></div>
+      <div><div className="flex justify-between items-center"><label className="text-xs font-bold">Attached files</label><button onClick={()=>setLessonForm((f:any)=>({...f,attachments:[...f.attachments,{name:"",url:"",mimeType:"",sizeBytes:0}]}))} className="text-xs font-bold text-[#5B6CF0]">+ Thêm file</button></div>{lessonForm.attachments.map((file:any,index:number)=><div key={index} className="grid grid-cols-[1fr_2fr_32px] gap-2 mt-2"><input value={file.name} onChange={e=>setLessonForm((f:any)=>({...f,attachments:f.attachments.map((x:any,i:number)=>i===index?{...x,name:e.target.value}:x)}))} placeholder="Tên file" className="border rounded-lg p-2 text-xs" /><input value={file.url} onChange={e=>setLessonForm((f:any)=>({...f,attachments:f.attachments.map((x:any,i:number)=>i===index?{...x,url:e.target.value}:x)}))} placeholder="URL file" className="border rounded-lg p-2 text-xs" /><button onClick={()=>setLessonForm((f:any)=>({...f,attachments:f.attachments.filter((_:any,i:number)=>i!==index)}))} className="text-red-500"><X size={14}/></button></div>)}</div>
+      <div className="grid grid-cols-3 gap-3"><FormField label="Thời lượng"><input type="number" value={lessonForm.durationMinutes} onChange={e=>setLessonForm((f:any)=>({...f,durationMinutes:e.target.value}))} className="w-full border rounded-xl p-2 text-sm" /></FormField><FormField label="Thứ tự"><input type="number" value={lessonForm.orderIndex} onChange={e=>setLessonForm((f:any)=>({...f,orderIndex:e.target.value}))} className="w-full border rounded-xl p-2 text-sm" /></FormField><FormField label="Preview"><input type="checkbox" checked={lessonForm.isPreview} onChange={e=>setLessonForm((f:any)=>({...f,isPreview:e.target.checked}))} className="mt-3 w-4 h-4" /></FormField></div>
+      <button onClick={saveLesson} disabled={!lessonForm.title || !lessonForm.courseId} className="w-full py-2.5 bg-[#1C2448] text-white rounded-xl text-sm font-bold disabled:opacity-50">Lưu lesson</button>
+    </div></Modal>}
+  </div>;
+
   if (view === "assignments") return <div className="p-6 max-w-6xl mx-auto">
     <h2 className="text-xl font-bold mb-1">Assignments</h2><p className="text-sm text-muted-foreground mb-6">Nộp bài và xem kết quả đánh giá AI</p>
     {libraryError && <div className="mb-4 bg-red-50 text-red-600 p-3 rounded-xl text-sm">{libraryError}</div>}
@@ -736,6 +754,7 @@ function StudentView({ view }: { view: string }) {
             <div className="bg-muted rounded-xl p-3"><span className="text-muted-foreground">Ngày đăng ký</span><b className="block mt-1">{new Date(courseDetail.enrolledAt).toLocaleDateString("vi-VN")}</b></div>
           </div>
         </div>
+        {(course.modules ?? []).length > 0 && <div className="bg-white rounded-2xl border border-border p-6 mb-5"><h3 className="font-bold mb-4">Modules</h3><div className="space-y-3">{course.modules.map((module:any)=><div key={module.id} className="border border-border rounded-xl overflow-hidden"><div className="bg-muted/40 p-4"><b className="text-sm">{module.orderIndex}. {module.title}</b><p className="text-xs text-muted-foreground mt-1">{module.description}</p></div><div className="divide-y divide-border">{(module.contents??[]).map((content:any)=><div key={content.id} className="p-3 flex items-center gap-3"><ContentIcon type={content.type==="lesson"?"video":content.type==="question"?"quiz":content.type}/><div><p className="text-sm font-semibold">{content.title}</p><p className="text-xs text-muted-foreground">{content.type} · {content.description}</p></div></div>)}</div></div>)}</div></div>}
         {activeLesson && <div className="bg-white rounded-2xl border border-border p-6 mb-5">
           <div className="flex items-start justify-between gap-3 mb-4"><div><h3 className="font-bold">{activeLesson.title}</h3><p className="text-xs text-muted-foreground mt-1">{activeLesson.contentType} · {activeLesson.durationMinutes} phút</p></div><button onClick={() => setActiveLesson(null)} className="p-1.5 rounded-lg hover:bg-muted"><X size={16} /></button></div>
           {activeLesson.contentUrl?.includes("youtube.com/watch") ? <iframe
@@ -1195,6 +1214,11 @@ function SMEView({ view }: { view: string }) {
   const [assignmentEditing, setAssignmentEditing] = useState(false);
   const [aiTopic, setAiTopic] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const [lessons, setLessons] = useState<any[]>([]);
+  const [lessonEditing, setLessonEditing] = useState(false);
+  const [lessonAiTopic, setLessonAiTopic] = useState("");
+  const [lessonAiLoading, setLessonAiLoading] = useState(false);
+  const [lessonForm, setLessonForm] = useState<any>({ id: null, courseId: "", title: "", contentType: "document", contentUrl: "", content: "", durationMinutes: 15, orderIndex: 1, isPreview: false, attachments: [] });
 
   useEffect(() => {
     const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token");
@@ -1203,6 +1227,32 @@ function SMEView({ view }: { view: string }) {
       .then(async response => { const data = await response.json(); if (!response.ok) throw new Error(data.message); return data; })
       .then(setSmeCourses).catch(error => setSmeError(error.message));
   }, []);
+
+  useEffect(() => {
+    const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token");
+    if (!token) return;
+    fetch(`${API_URL}/sme-lessons`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).then(data => Array.isArray(data) && setLessons(data));
+  }, []);
+
+  async function generateLesson() {
+    const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token"); setLessonAiLoading(true); setSmeError("");
+    try { const response = await fetch(`${API_URL}/sme-lessons/generate`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ topic: lessonAiTopic, audience: "sinh viên", objectives: "hiểu và vận dụng kiến thức" }) }); const data = await response.json(); if (!response.ok) throw new Error(data.message); setLessonForm((form:any) => ({ ...form, title: data.title, content: data.markdownContent, contentType: "document", durationMinutes: data.durationMinutes })); }
+    catch (error) { setSmeError(error instanceof Error ? error.message : "Không thể sinh lesson"); } finally { setLessonAiLoading(false); }
+  }
+
+  async function extractYoutubeLesson() {
+    if (!lessonForm.contentUrl) { setSmeError("Hãy nhập YouTube URL trước"); return; }
+    const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token"); setLessonAiLoading(true); setSmeError("");
+    try { const response = await fetch(`${API_URL}/sme-lessons/extract-youtube`, { method:"POST", headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`}, body:JSON.stringify({youtubeUrl:lessonForm.contentUrl,language:"vi"}) }); const data=await response.json(); if(!response.ok) throw new Error(data.message); setLessonForm((form:any)=>({...form,title:data.title,content:data.markdownContent,contentType:"video"})); }
+    catch(error){setSmeError(error instanceof Error?error.message:"Không thể lấy transcript");} finally{setLessonAiLoading(false);}
+  }
+
+  async function saveLesson() {
+    const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token"); const method = lessonForm.id ? "PUT" : "POST"; const url = lessonForm.id ? `${API_URL}/sme-lessons/${lessonForm.id}` : `${API_URL}/sme-lessons`;
+    const payload = { ...lessonForm, courseId: Number(lessonForm.courseId), durationMinutes: Number(lessonForm.durationMinutes), orderIndex: Number(lessonForm.orderIndex), attachments: lessonForm.attachments.filter((file:any) => file.name?.trim() && file.url?.trim()) };
+    const response = await fetch(url, { method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) }); const data = await response.json();
+    if (!response.ok) { setSmeError(data.message); return; } setLessons(items => lessonForm.id ? items.map(item => item.id === data.id ? data : item) : [...items, data]); setLessonEditing(false);
+  }
 
   useEffect(() => {
     const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token");
@@ -1232,6 +1282,24 @@ function SMEView({ view }: { view: string }) {
     if (!response.ok) { setSmeError(data.message); return; }
     setSmeStructure(data);
   }
+
+  if (view === "lessons") return <div className="p-6 max-w-6xl mx-auto">
+    <div className="flex justify-between mb-6"><div><h2 className="text-xl font-bold">Lesson Editor</h2><p className="text-sm text-muted-foreground mt-1">Chỉnh video, Markdown và file đính kèm</p></div><button onClick={() => { setLessonForm({ id:null, courseId:smeCourses[0]?.id ?? "", title:"", contentType:"document", contentUrl:"", content:"", durationMinutes:15, orderIndex:lessons.length+1, isPreview:false, attachments:[] }); setLessonEditing(true); }} className="px-4 py-2 bg-[#1C2448] text-white rounded-xl text-sm font-bold"><Plus size={14} className="inline mr-1"/> Thêm lesson</button></div>
+    {smeError && <div className="mb-4 bg-red-50 text-red-600 p-3 rounded-xl text-sm">{smeError}</div>}
+    <div className="bg-white border border-border rounded-2xl overflow-hidden">{lessons.map(lesson=><button key={lesson.id} onClick={()=>{setLessonForm({...lesson,contentUrl:lesson.contentUrl??"",content:lesson.content??"",attachments:lesson.attachments??[]});setLessonEditing(true);}} className="w-full p-4 flex items-center gap-3 text-left border-b border-border last:border-0 hover:bg-muted/30"><ContentIcon type={lesson.contentType}/><div className="flex-1"><p className="font-semibold text-sm">{lesson.title}</p><p className="text-xs text-muted-foreground mt-1">{lesson.course?.title} · {lesson.contentType} · {lesson.durationMinutes} phút · {lesson.attachments?.length??0} files</p></div><Badge color={lesson.isPreview?"green":"gray"}>{lesson.isPreview?"Preview":"Private"}</Badge><Edit size={14}/></button>)}</div>
+    {lessons.length===0&&<div className="py-16 text-center text-sm text-muted-foreground">Chưa có lesson. Nhấn “Thêm lesson” để bắt đầu.</div>}
+    {lessonEditing&&<Modal title={lessonForm.id?"Edit Lesson":"AI Lesson Staging"} onClose={()=>setLessonEditing(false)}><div className="space-y-4 max-h-[78vh] overflow-auto pr-1">
+      <div className="bg-[#EEF0FF] rounded-xl p-4"><label className="text-xs font-bold">Tạo lesson text bằng Gemini</label><div className="flex gap-2 mt-2"><input value={lessonAiTopic} onChange={e=>setLessonAiTopic(e.target.value)} placeholder="Ví dụ: Neural Network cơ bản" className="flex-1 border rounded-xl px-3 text-sm"/><button onClick={generateLesson} disabled={!lessonAiTopic||lessonAiLoading} className="px-3 py-2 bg-[#5B6CF0] text-white rounded-xl text-xs font-bold disabled:opacity-50">{lessonAiLoading?"Đang tạo...":"Tạo bằng AI"}</button></div><p className="text-xs text-muted-foreground mt-2">AI tạo bản nháp; SME chỉnh sửa trước khi lưu.</p></div>
+      <FormField label="Khóa học"><FSelect value={String(lessonForm.courseId)} onChange={v=>setLessonForm((f:any)=>({...f,courseId:v}))}>{smeCourses.map(c=><option key={c.id} value={c.id}>{c.title}</option>)}</FSelect></FormField>
+      <div className="grid grid-cols-2 gap-3"><FormField label="Tiêu đề"><FInput value={lessonForm.title} onChange={v=>setLessonForm((f:any)=>({...f,title:v}))}/></FormField><FormField label="Loại"><FSelect value={lessonForm.contentType} onChange={v=>setLessonForm((f:any)=>({...f,contentType:v}))}><option value="video">Video</option><option value="document">Markdown</option><option value="quiz">Quiz</option><option value="flashcard">Flashcard</option><option value="essay">Essay</option></FSelect></FormField></div>
+      <FormField label="Video / Content URL"><FInput value={lessonForm.contentUrl} onChange={v=>setLessonForm((f:any)=>({...f,contentUrl:v}))} placeholder="https://youtube.com/watch?v=..."/></FormField>
+      <button onClick={extractYoutubeLesson} disabled={!lessonForm.contentUrl||lessonAiLoading} className="w-full py-2.5 border border-[#5B6CF0] text-[#5B6CF0] rounded-xl text-sm font-bold disabled:opacity-50"><Download size={14} className="inline mr-1"/> Lấy transcript YouTube và tạo lesson summary</button>
+      <div className="grid md:grid-cols-2 gap-3"><div><label className="text-xs font-bold">Markdown</label><textarea value={lessonForm.content} onChange={e=>setLessonForm((f:any)=>({...f,content:e.target.value}))} className="mt-2 w-full min-h-64 border border-border rounded-xl p-3 text-sm font-mono"/></div><div><label className="text-xs font-bold">Preview</label><div className="mt-2 min-h-64 border border-border rounded-xl p-4 text-sm whitespace-pre-wrap bg-muted/20">{lessonForm.content||"Markdown preview"}</div></div></div>
+      <div><div className="flex justify-between"><label className="text-xs font-bold">Attached files</label><button onClick={()=>setLessonForm((f:any)=>({...f,attachments:[...f.attachments,{name:"",url:""}]}))} className="text-xs font-bold text-[#5B6CF0]">+ Thêm file</button></div>{lessonForm.attachments.map((file:any,index:number)=><div key={index} className="grid grid-cols-[1fr_2fr_32px] gap-2 mt-2"><input value={file.name} onChange={e=>setLessonForm((f:any)=>({...f,attachments:f.attachments.map((x:any,i:number)=>i===index?{...x,name:e.target.value}:x)}))} placeholder="Tên file" className="border rounded-lg p-2 text-xs"/><input value={file.url} onChange={e=>setLessonForm((f:any)=>({...f,attachments:f.attachments.map((x:any,i:number)=>i===index?{...x,url:e.target.value}:x)}))} placeholder="URL file" className="border rounded-lg p-2 text-xs"/><button onClick={()=>setLessonForm((f:any)=>({...f,attachments:f.attachments.filter((_:any,i:number)=>i!==index)}))} className="text-red-500"><X size={14}/></button></div>)}</div>
+      <div className="grid grid-cols-3 gap-3"><FormField label="Phút"><input type="number" value={lessonForm.durationMinutes} onChange={e=>setLessonForm((f:any)=>({...f,durationMinutes:e.target.value}))} className="w-full border rounded-xl p-2 text-sm"/></FormField><FormField label="Thứ tự"><input type="number" value={lessonForm.orderIndex} onChange={e=>setLessonForm((f:any)=>({...f,orderIndex:e.target.value}))} className="w-full border rounded-xl p-2 text-sm"/></FormField><FormField label="Preview"><input type="checkbox" checked={lessonForm.isPreview} onChange={e=>setLessonForm((f:any)=>({...f,isPreview:e.target.checked}))} className="mt-3 w-4 h-4"/></FormField></div>
+      <button onClick={saveLesson} disabled={!lessonForm.title||!lessonForm.courseId} className="w-full py-2.5 bg-[#1C2448] text-white rounded-xl text-sm font-bold disabled:opacity-50">Lưu lesson</button>
+    </div></Modal>}
+  </div>;
 
   if (view === "assignments") return <div className="p-6 max-w-6xl mx-auto">
     <div className="flex justify-between mb-6"><div><h2 className="text-xl font-bold">Assignments</h2><p className="text-sm text-muted-foreground mt-1">Danh sách và rubric bài tập</p></div><button onClick={() => { setAssignmentForm({ id: null, courseId: smeCourses[0]?.id ?? "", moduleId: "", title: "", instructions: "", rubric: [], maxScore: 100, dueAt: "", status: "draft" }); setAssignmentEditing(true); }} className="px-4 py-2 bg-[#1C2448] text-white rounded-xl text-sm font-bold"><Plus size={14} className="inline mr-1" /> Thêm assignment</button></div>
