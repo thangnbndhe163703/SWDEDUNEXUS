@@ -93,6 +93,7 @@ const SIDEBAR_NAV: Record<Role, { icon: React.ComponentType<{ size?: number }>; 
     { icon: FileText,         label: "Assignments",       view: "assignments" },
     { icon: Film,             label: "Lesson Editor",     view: "lessons" },
     { icon: HelpCircle,       label: "Question Bank",     view: "questions" },
+    { icon: Repeat,           label: "Flashcard Editor",  view: "flashcards" },
     { icon: Upload,           label: "Xuất bản",          view: "publish"   },
     { icon: Eye,              label: "Xem trước",          view: "preview"   },
   ],
@@ -561,6 +562,8 @@ function TopBar({ role, onRoleChange, onLogout }: { role: Role; onRoleChange: (r
 function StudentView({ view }: { view: string }) {
   const [fcIdx, setFcIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
+  const [flashcards, setFlashcards] = useState<any[]>([]);
+  const [flashcardCourse, setFlashcardCourse] = useState("all");
   const [qIdx, setQIdx] = useState(0);
   const [answer, setAnswer] = useState<number | null>(null);
   const [done, setDone] = useState(false);
@@ -582,6 +585,15 @@ function StudentView({ view }: { view: string }) {
       .then(async response => { const data = await response.json(); if (!response.ok) throw new Error(data.message); return data; })
       .then(setLibrary)
       .catch(error => setLibraryError(error.message || "Không thể tải thư viện"));
+  }, []);
+
+  useEffect(() => {
+    const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token");
+    if (!token) return;
+    fetch(`${API_URL}/flashcards/library`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async response => { const data = await response.json(); if (!response.ok) throw new Error(data.message); return data; })
+      .then(data => { setFlashcards(Array.isArray(data) ? data : []); setFcIdx(0); })
+      .catch(error => setLibraryError(error.message || "Không thể tải flashcard"));
   }, []);
 
   useEffect(() => {
@@ -657,15 +669,20 @@ function StudentView({ view }: { view: string }) {
   </div>;
 
   if (view === "flashcard") {
-    if (FLASHCARDS.length === 0) return <div className="p-8 text-sm text-muted-foreground">Chưa có flashcard.</div>;
-    const card = FLASHCARDS[fcIdx];
+    const courses = Array.from(new Map(flashcards.map(card => [card.courseId, card.course])).values());
+    const practiceCards = flashcardCourse === "all" ? flashcards : flashcards.filter(card => String(card.courseId) === flashcardCourse);
+    const safeIndex = Math.min(fcIdx, Math.max(practiceCards.length - 1, 0));
+    const card = practiceCards[safeIndex];
     return (
-      <div className="p-8 max-w-xl mx-auto">
+      <div className="p-8 max-w-5xl mx-auto">
+        <div className="flex items-center justify-between gap-4 mb-6"><div><h2 className="text-xl font-bold">Flashcard Library</h2><p className="text-sm text-muted-foreground mt-1">{practiceCards.length} thẻ đã xuất bản trong khóa học của bạn</p></div><FSelect value={flashcardCourse} onChange={value => { setFlashcardCourse(value); setFcIdx(0); setFlipped(false); }}><option value="all">Tất cả khóa học</option>{courses.map((course:any)=><option key={course.id} value={course.id}>{course.title}</option>)}</FSelect></div>
+        {!card && <div className="bg-white border border-border rounded-2xl p-12 text-center text-sm text-muted-foreground">Chưa có flashcard được xuất bản.</div>}
+        {card && <div className="max-w-xl mx-auto">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-bold">Flashcard · ML Fundamentals</h2>
-          <Badge color="blue">{fcIdx + 1} / {FLASHCARDS.length}</Badge>
+          <h3 className="text-lg font-bold">Flashcard Practice · {card.course?.title}</h3>
+          <Badge color="blue">{safeIndex + 1} / {practiceCards.length}</Badge>
         </div>
-        <Bar2 value={((fcIdx + 1) / FLASHCARDS.length) * 100} h="h-1.5" />
+        <Bar2 value={((safeIndex + 1) / practiceCards.length) * 100} h="h-1.5" />
         <button onClick={() => setFlipped(v => !v)} className="w-full mt-8 text-left">
           <div className="bg-white border border-border rounded-2xl p-8 min-h-52 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md transition-shadow relative">
             <span className="absolute top-4 right-4 text-xs font-mono text-muted-foreground">{flipped ? "Định nghĩa" : "Thuật ngữ"}</span>
@@ -680,7 +697,7 @@ function StudentView({ view }: { view: string }) {
           <button onClick={() => { setFcIdx(i => Math.max(0, i - 1)); setFlipped(false); }} disabled={fcIdx === 0} className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold hover:bg-muted transition-colors disabled:opacity-40 flex items-center justify-center gap-1"><ChevronLeft size={14} /> Trước</button>
           <button className="flex-1 py-3 bg-[#FEF2F2] text-[#EF4444] rounded-xl text-sm font-bold hover:bg-red-100 transition-colors">Chưa nhớ</button>
           <button className="flex-1 py-3 bg-[#ECFDF5] text-[#10B981] rounded-xl text-sm font-bold hover:bg-emerald-100 transition-colors">Đã nhớ ✓</button>
-          <button onClick={() => { setFcIdx(i => Math.min(FLASHCARDS.length - 1, i + 1)); setFlipped(false); }} disabled={fcIdx === FLASHCARDS.length - 1} className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold hover:bg-muted transition-colors disabled:opacity-40 flex items-center justify-center gap-1">Tiếp <ChevronRight size={14} /></button>
+          <button onClick={() => { setFcIdx(i => Math.min(practiceCards.length - 1, i + 1)); setFlipped(false); }} disabled={safeIndex === practiceCards.length - 1} className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold hover:bg-muted transition-colors disabled:opacity-40 flex items-center justify-center gap-1">Tiếp <ChevronRight size={14} /></button>
         </div>
         <div className="mt-5 bg-[#EEF0FF] rounded-2xl p-4 flex items-center gap-3">
           <Brain size={18} className="text-[#5B6CF0] flex-shrink-0" />
@@ -688,7 +705,7 @@ function StudentView({ view }: { view: string }) {
             <p className="text-xs font-bold text-[#1C2448]">AI gợi ý ôn luyện</p>
             <p className="text-xs text-[#5B6CF0] mt-0.5">Bạn nên ôn lại "Gradient Descent" vào ngày mai — thẻ có tỷ lệ quên cao nhất (67%).</p>
           </div>
-        </div>
+        </div></div>}
       </div>
     );
   }
@@ -1263,6 +1280,12 @@ function SMEView({ view }: { view: string }) {
   const [stagedQuestions, setStagedQuestions] = useState<any[]>([]);
   const [importText, setImportText] = useState("");
   const [questionForm, setQuestionForm] = useState<any>({id:null,courseId:"",moduleId:"",type:"single_choice",content:"",options:["","","",""],correctAnswer:0,explanation:"",difficulty:"medium",tags:[],status:"draft"});
+  const [flashcards, setFlashcards] = useState<any[]>([]);
+  const [flashcardEditing, setFlashcardEditing] = useState(false);
+  const [flashcardAiTopic, setFlashcardAiTopic] = useState("");
+  const [flashcardAiLoading, setFlashcardAiLoading] = useState(false);
+  const [stagedFlashcards, setStagedFlashcards] = useState<any[]>([]);
+  const [flashcardForm, setFlashcardForm] = useState<any>({ id:null, courseId:"", moduleId:"", front:"", back:"", hint:"", difficulty:"medium", tags:[], status:"draft" });
 
   useEffect(() => {
     const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token");
@@ -1273,6 +1296,12 @@ function SMEView({ view }: { view: string }) {
   }, []);
 
   useEffect(()=>{const token=sessionStorage.getItem("edunexus_token")||localStorage.getItem("edunexus_token");if(!token)return;fetch(`${API_URL}/questions`,{headers:{Authorization:`Bearer ${token}`}}).then(r=>r.json()).then(data=>Array.isArray(data)&&setQuestions(data));},[]);
+  useEffect(()=>{const token=sessionStorage.getItem("edunexus_token")||localStorage.getItem("edunexus_token");if(!token)return;fetch(`${API_URL}/flashcards`,{headers:{Authorization:`Bearer ${token}`}}).then(r=>r.json()).then(data=>Array.isArray(data)&&setFlashcards(data));},[]);
+
+  async function saveFlashcard(){const token=sessionStorage.getItem("edunexus_token")||localStorage.getItem("edunexus_token");const method=flashcardForm.id?"PUT":"POST";const url=flashcardForm.id?`${API_URL}/flashcards/${flashcardForm.id}`:`${API_URL}/flashcards`;const payload={...flashcardForm,courseId:Number(flashcardForm.courseId),moduleId:flashcardForm.moduleId?Number(flashcardForm.moduleId):null,tags:Array.isArray(flashcardForm.tags)?flashcardForm.tags:String(flashcardForm.tags||"").split(",").map(x=>x.trim()).filter(Boolean)};const response=await fetch(url,{method,headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify(payload)});const data=await response.json();if(!response.ok){setSmeError(data.message);return;}setFlashcards(items=>flashcardForm.id?items.map(x=>x.id===data.id?data:x):[data,...items]);setFlashcardEditing(false);}
+  async function generateFlashcards(){const token=sessionStorage.getItem("edunexus_token")||localStorage.getItem("edunexus_token");setFlashcardAiLoading(true);setSmeError("");try{const response=await fetch(`${API_URL}/flashcards/generate`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify({topic:flashcardAiTopic,difficulty:flashcardForm.difficulty,count:5})});const data=await response.json();if(!response.ok)throw new Error(data.message);setStagedFlashcards(data.map((card:any)=>({...card,status:"draft"})));}catch(error){setSmeError(error instanceof Error?error.message:"Không thể sinh flashcard");}finally{setFlashcardAiLoading(false);}}
+  async function saveStagedFlashcards(){const token=sessionStorage.getItem("edunexus_token")||localStorage.getItem("edunexus_token");const response=await fetch(`${API_URL}/flashcards/bulk`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify({courseId:Number(flashcardForm.courseId),moduleId:flashcardForm.moduleId?Number(flashcardForm.moduleId):null,cards:stagedFlashcards})});const data=await response.json();if(!response.ok){setSmeError(data.message);return;}setFlashcards(items=>[...data,...items]);setStagedFlashcards([]);setFlashcardEditing(false);}
+  async function deleteFlashcard(id:number){const token=sessionStorage.getItem("edunexus_token")||localStorage.getItem("edunexus_token");const response=await fetch(`${API_URL}/flashcards/${id}`,{method:"DELETE",headers:{Authorization:`Bearer ${token}`}});if(!response.ok){const data=await response.json();setSmeError(data.message);return;}setFlashcards(items=>items.filter(card=>card.id!==id));setFlashcardEditing(false);}
 
   async function saveQuestion(){const token=sessionStorage.getItem("edunexus_token")||localStorage.getItem("edunexus_token");const method=questionForm.id?"PUT":"POST";const url=questionForm.id?`${API_URL}/questions/${questionForm.id}`:`${API_URL}/questions`;const payload={...questionForm,courseId:Number(questionForm.courseId),moduleId:questionForm.moduleId?Number(questionForm.moduleId):null,options:questionForm.options.filter(Boolean)};const response=await fetch(url,{method,headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify(payload)});const data=await response.json();if(!response.ok){setSmeError(data.message);return;}setQuestions(items=>questionForm.id?items.map(x=>x.id===data.id?data:x):[data,...items]);setQuestionEditing(false);}
   async function generateQuestions(){const token=sessionStorage.getItem("edunexus_token")||localStorage.getItem("edunexus_token");setQuestionAiLoading(true);try{const response=await fetch(`${API_URL}/questions/generate`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify({topic:questionAiTopic,difficulty:questionForm.difficulty,count:5})});const data=await response.json();if(!response.ok)throw new Error(data.message);setStagedQuestions(data.map((q:any)=>({...q,courseId:Number(questionForm.courseId),moduleId:null,type:"single_choice",status:"draft"})));}catch(error){setSmeError(error instanceof Error?error.message:"Không thể sinh câu hỏi");}finally{setQuestionAiLoading(false);}}
@@ -1333,6 +1362,17 @@ function SMEView({ view }: { view: string }) {
     if (!response.ok) { setSmeError(data.message); return; }
     setSmeStructure(data);
   }
+
+  if(view==="flashcards")return <div className="p-6 max-w-6xl mx-auto">
+    <div className="flex justify-between gap-3 mb-6"><div><h2 className="text-xl font-bold">Flashcard Editor</h2><p className="text-sm text-muted-foreground mt-1">{flashcards.length} flashcard · tạo thủ công hoặc staging bằng AI</p></div><button onClick={()=>{setStagedFlashcards([]);setFlashcardForm({id:null,courseId:smeCourses[0]?.id??"",moduleId:"",front:"",back:"",hint:"",difficulty:"medium",tags:[],status:"draft"});setFlashcardEditing(true);}} className="px-4 py-2 bg-[#1C2448] text-white rounded-xl text-sm font-bold"><Plus size={14} className="inline mr-1"/> Thêm flashcard</button></div>
+    {smeError&&<div className="mb-4 bg-red-50 text-red-600 p-3 rounded-xl text-sm">{smeError}</div>}
+    <div className="grid md:grid-cols-2 gap-4">{flashcards.map(card=><button key={card.id} onClick={()=>{setStagedFlashcards([]);setFlashcardForm({...card,moduleId:card.moduleId??"",tags:card.tags??[]});setFlashcardEditing(true);}} className="bg-white border border-border rounded-2xl p-5 text-left hover:shadow-md transition-shadow"><div className="flex justify-between gap-3"><Badge color="purple">{card.course?.title}</Badge><Badge color={card.status==="published"?"green":"gray"}>{card.status}</Badge></div><h3 className="font-bold mt-4">{card.front}</h3><p className="text-sm text-muted-foreground mt-2 line-clamp-2">{card.back}</p><div className="flex justify-between mt-4 text-xs text-muted-foreground"><span>{card.difficulty}</span><span>{card.tags?.join(" · ")}</span></div></button>)}</div>
+    {flashcards.length===0&&<div className="py-16 text-center text-sm text-muted-foreground">Chưa có flashcard. Nhấn “Thêm flashcard” để bắt đầu.</div>}
+    {flashcardEditing&&<Modal title={flashcardForm.id?"Flashcard Editor":"AI Flashcard Staging"} onClose={()=>{setStagedFlashcards([]);setFlashcardEditing(false);}}><div className="space-y-4 max-h-[78vh] overflow-auto pr-1">
+      {!flashcardForm.id&&<div className="bg-[#EEF0FF] p-4 rounded-xl"><label className="text-xs font-bold">Sinh 5 flashcard bằng Gemini</label><div className="flex gap-2 mt-2"><input value={flashcardAiTopic} onChange={e=>setFlashcardAiTopic(e.target.value)} placeholder="Chủ đề flashcard" className="flex-1 border rounded-xl px-3 text-sm"/><button onClick={generateFlashcards} disabled={!flashcardAiTopic||!flashcardForm.courseId||flashcardAiLoading} className="px-3 py-2 bg-[#5B6CF0] text-white rounded-xl text-xs font-bold disabled:opacity-50">{flashcardAiLoading?"Đang sinh...":"Sinh bằng AI"}</button></div><p className="text-xs text-muted-foreground mt-2">AI chỉ tạo bản nháp; thẻ chỉ ra thư viện sau khi bạn lưu và xuất bản.</p></div>}
+      {stagedFlashcards.length>0?<div className="space-y-4"><div className="flex justify-between"><h3 className="font-bold">{stagedFlashcards.length} flashcard AI đã sinh</h3><Badge color="purple">Chưa lưu</Badge></div>{stagedFlashcards.map((card:any,index:number)=><div key={index} className="border border-border rounded-xl p-4 space-y-2"><input value={card.front} onChange={e=>setStagedFlashcards(items=>items.map((x,i)=>i===index?{...x,front:e.target.value}:x))} className="w-full border rounded-lg p-2 text-sm font-bold" placeholder="Mặt trước"/><textarea value={card.back} onChange={e=>setStagedFlashcards(items=>items.map((x,i)=>i===index?{...x,back:e.target.value}:x))} className="w-full min-h-20 border rounded-lg p-2 text-sm" placeholder="Mặt sau"/><input value={card.hint??""} onChange={e=>setStagedFlashcards(items=>items.map((x,i)=>i===index?{...x,hint:e.target.value}:x))} className="w-full border rounded-lg p-2 text-xs" placeholder="Gợi ý"/><div className="flex justify-between"><Badge color="yellow">{card.difficulty}</Badge><button onClick={()=>setStagedFlashcards(items=>items.filter((_,i)=>i!==index))} className="text-xs font-bold text-red-500">Xóa thẻ</button></div></div>)}<button onClick={saveStagedFlashcards} disabled={stagedFlashcards.some(card=>!card.front?.trim()||!card.back?.trim())} className="w-full py-3 bg-[#10B981] text-white rounded-xl text-sm font-bold disabled:opacity-50">Lưu toàn bộ {stagedFlashcards.length} flashcard</button></div>:<div className="space-y-4"><FormField label="Khóa học"><FSelect value={String(flashcardForm.courseId)} onChange={value=>setFlashcardForm((form:any)=>({...form,courseId:value}))}>{smeCourses.map(course=><option key={course.id} value={course.id}>{course.title}</option>)}</FSelect></FormField><FormField label="Mặt trước"><textarea value={flashcardForm.front} onChange={e=>setFlashcardForm((form:any)=>({...form,front:e.target.value}))} className="w-full min-h-20 border rounded-xl p-3 text-sm"/></FormField><FormField label="Mặt sau"><textarea value={flashcardForm.back} onChange={e=>setFlashcardForm((form:any)=>({...form,back:e.target.value}))} className="w-full min-h-28 border rounded-xl p-3 text-sm"/></FormField><FormField label="Gợi ý"><FInput value={flashcardForm.hint??""} onChange={value=>setFlashcardForm((form:any)=>({...form,hint:value}))}/></FormField><div className="grid grid-cols-2 gap-3"><FormField label="Độ khó"><FSelect value={flashcardForm.difficulty} onChange={value=>setFlashcardForm((form:any)=>({...form,difficulty:value}))}><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option></FSelect></FormField><FormField label="Trạng thái"><FSelect value={flashcardForm.status} onChange={value=>setFlashcardForm((form:any)=>({...form,status:value}))}><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></FSelect></FormField></div><FormField label="Tags (phân cách bằng dấu phẩy)"><FInput value={Array.isArray(flashcardForm.tags)?flashcardForm.tags.join(", "):flashcardForm.tags} onChange={value=>setFlashcardForm((form:any)=>({...form,tags:value}))}/></FormField><div className="flex gap-2">{flashcardForm.id&&<button onClick={()=>deleteFlashcard(flashcardForm.id)} className="px-4 py-2.5 border border-red-200 text-red-500 rounded-xl text-sm font-bold">Xóa</button>}<button onClick={saveFlashcard} disabled={!flashcardForm.front.trim()||!flashcardForm.back.trim()||!flashcardForm.courseId} className="flex-1 py-2.5 bg-[#1C2448] text-white rounded-xl text-sm font-bold disabled:opacity-50">Lưu flashcard</button></div></div>}
+    </div></Modal>}
+  </div>;
 
   if(view==="questions")return <div className="p-6 max-w-6xl mx-auto">
     <div className="flex justify-between gap-3 mb-6"><div><h2 className="text-xl font-bold">Question Bank</h2><p className="text-sm text-muted-foreground mt-1">{questions.length} câu hỏi</p></div><div className="flex gap-2"><button onClick={()=>setQuestionImporting(true)} className="px-4 py-2 border border-border rounded-xl text-sm font-bold"><Upload size={14} className="inline mr-1"/> Import</button><button onClick={()=>{setStagedQuestions([]);setQuestionForm({id:null,courseId:smeCourses[0]?.id??"",moduleId:"",type:"single_choice",content:"",options:["","","",""],correctAnswer:0,explanation:"",difficulty:"medium",tags:[],status:"draft"});setQuestionEditing(true);}} className="px-4 py-2 bg-[#1C2448] text-white rounded-xl text-sm font-bold"><Plus size={14} className="inline mr-1"/> Thêm câu hỏi</button></div></div>
