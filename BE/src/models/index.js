@@ -15,6 +15,7 @@ const Assignment = require('./Assignment')(sequelize);
 const AssignmentSubmission = require('./AssignmentSubmission')(sequelize);
 const LessonAttachment = require('./LessonAttachment')(sequelize);
 const Question = require('./Question')(sequelize);
+const Flashcard = require('./Flashcard')(sequelize);
 
 Role.hasMany(User, { foreignKey: 'roleId', as: 'users' });
 User.belongsTo(Role, { foreignKey: 'roleId', as: 'role' });
@@ -34,6 +35,12 @@ CourseModule.hasMany(Question, { foreignKey: 'moduleId', as: 'questions' });
 Question.belongsTo(CourseModule, { foreignKey: 'moduleId', as: 'module' });
 User.hasMany(Question, { foreignKey: 'smeId', as: 'authoredQuestions' });
 Question.belongsTo(User, { foreignKey: 'smeId', as: 'sme' });
+Course.hasMany(Flashcard, { foreignKey: 'courseId', as: 'flashcards' });
+Flashcard.belongsTo(Course, { foreignKey: 'courseId', as: 'course' });
+CourseModule.hasMany(Flashcard, { foreignKey: 'moduleId', as: 'flashcards' });
+Flashcard.belongsTo(CourseModule, { foreignKey: 'moduleId', as: 'module' });
+User.hasMany(Flashcard, { foreignKey: 'smeId', as: 'authoredFlashcards' });
+Flashcard.belongsTo(User, { foreignKey: 'smeId', as: 'sme' });
 
 User.belongsToMany(Course, { through: Enrollment, foreignKey: 'userId', otherKey: 'courseId', as: 'enrolledCourses' });
 Course.belongsToMany(User, { through: Enrollment, foreignKey: 'courseId', otherKey: 'userId', as: 'students' });
@@ -64,4 +71,4 @@ AssignmentSubmission.belongsTo(Assignment, { foreignKey: 'assignmentId', as: 'as
 User.hasMany(AssignmentSubmission, { foreignKey: 'studentId', as: 'assignmentSubmissions' });
 AssignmentSubmission.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
 
-module.exports = { sequelize, Role, User, Category, Course, Lesson, Enrollment, SubscriptionPackage, UserSubscription, CourseModule, ModuleContent, CourseSme, Assignment, AssignmentSubmission, LessonAttachment, Question };
+module.exports = { sequelize, Role, User, Category, Course, Lesson, Enrollment, SubscriptionPackage, UserSubscription, CourseModule, ModuleContent, CourseSme, Assignment, AssignmentSubmission, LessonAttachment, Question, Flashcard };
