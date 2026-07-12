@@ -4,6 +4,7 @@ const { protect, authorize } = require('../middleware/authMiddleware');
 
 router.use(protect);
 router.get('/library', authorize('student'), controller.listForStudent);
+router.put('/:id/progress', authorize('student'), controller.saveStudentProgress);
 router.get('/', authorize('sme'), controller.listForSme);
 router.post('/generate', authorize('sme'), controller.generate);
 router.post('/bulk', authorize('sme'), controller.createMany);

@@ -563,7 +563,10 @@ function StudentView({ view }: { view: string }) {
   const [fcIdx, setFcIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [flashcards, setFlashcards] = useState<any[]>([]);
+  const [practiceQueue, setPracticeQueue] = useState<any[]>([]);
   const [flashcardCourse, setFlashcardCourse] = useState("all");
+  const [hideRemembered, setHideRemembered] = useState(false);
+  const [savingFlashcard, setSavingFlashcard] = useState(false);
   const [qIdx, setQIdx] = useState(0);
   const [answer, setAnswer] = useState<number | null>(null);
   const [done, setDone] = useState(false);
@@ -592,7 +595,12 @@ function StudentView({ view }: { view: string }) {
     if (!token) return;
     fetch(`${API_URL}/flashcards/library`, { headers: { Authorization: `Bearer ${token}` } })
       .then(async response => { const data = await response.json(); if (!response.ok) throw new Error(data.message); return data; })
-      .then(data => { setFlashcards(Array.isArray(data) ? data : []); setFcIdx(0); })
+      .then(data => {
+        const cards = Array.isArray(data) ? data : [];
+        setFlashcards(cards);
+        setPracticeQueue(cards.map((card: any, index: number) => ({ ...card, _queueKey: `${card.id}-${index}` })));
+        setFcIdx(0);
+      })
       .catch(error => setLibraryError(error.message || "Không thể tải flashcard"));
   }, []);
 
@@ -612,6 +620,48 @@ function StudentView({ view }: { view: string }) {
     const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token");
     const response = await fetch(`${API_URL}/student-assignments/${assignmentId}/result`, { headers: { Authorization: `Bearer ${token}` } }); const data = await response.json();
     if (response.ok) setSubmissionResult(data); else setLibraryError(data.message);
+  }
+
+  async function reviewFlashcard(card: any, remembered: boolean) {
+    if (savingFlashcard) return;
+    const token = sessionStorage.getItem("edunexus_token") || localStorage.getItem("edunexus_token");
+    setSavingFlashcard(true);
+    setLibraryError("");
+
+    // Move immediately so the practice flow never waits for the network.
+    // A forgotten card is moved (not copied) to the end of the queue once,
+    // keeping the total number of cards unchanged.
+    const optimisticProgress = { ...card.progress, remembered };
+    setFlashcards(items => items.map(item => item.id === card.id ? { ...item, progress: optimisticProgress } : item));
+    setPracticeQueue(items => {
+      const updated = items.map(item => item.id === card.id ? { ...item, progress: optimisticProgress } : item);
+      if (remembered || card._retried) return updated;
+      const currentIndex = updated.findIndex(item => item._queueKey === card._queueKey);
+      if (currentIndex < 0) return updated;
+      const reordered = [...updated];
+      const [forgottenCard] = reordered.splice(currentIndex, 1);
+      reordered.push({ ...forgottenCard, _retried: true });
+      return reordered;
+    });
+    setFcIdx(index => !remembered && !card._retried ? index : (hideRemembered && remembered ? index : index + 1));
+    setFlipped(false);
+
+    try {
+      const response = await fetch(`${API_URL}/flashcards/${card.id}/progress`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ remembered }),
+      });
+      const progress = await response.json();
+      if (!response.ok) throw new Error(progress.message || "Không thể lưu tiến độ flashcard");
+
+      setFlashcards(items => items.map(item => item.id === card.id ? { ...item, progress } : item));
+      setPracticeQueue(items => items.map(item => item.id === card.id ? { ...item, progress } : item));
+    } catch (error) {
+      setLibraryError(error instanceof Error ? error.message : "Không thể lưu tiến độ flashcard");
+    } finally {
+      setSavingFlashcard(false);
+    }
   }
 
   async function openCourseDetail(courseId: number) {
@@ -670,12 +720,16 @@ function StudentView({ view }: { view: string }) {
 
   if (view === "flashcard") {
     const courses = Array.from(new Map(flashcards.map(card => [card.courseId, card.course])).values());
-    const practiceCards = flashcardCourse === "all" ? flashcards : flashcards.filter(card => String(card.courseId) === flashcardCourse);
-    const safeIndex = Math.min(fcIdx, Math.max(practiceCards.length - 1, 0));
+    const practiceCards = practiceQueue.filter(card =>
+      (flashcardCourse === "all" || String(card.courseId) === flashcardCourse)
+      && (!hideRemembered || !card.progress?.remembered)
+    );
+    const safeIndex = Math.min(fcIdx, practiceCards.length);
     const card = practiceCards[safeIndex];
     return (
       <div className="p-8 max-w-5xl mx-auto">
-        <div className="flex items-center justify-between gap-4 mb-6"><div><h2 className="text-xl font-bold">Flashcard Library</h2><p className="text-sm text-muted-foreground mt-1">{practiceCards.length} thẻ đã xuất bản trong khóa học của bạn</p></div><FSelect value={flashcardCourse} onChange={value => { setFlashcardCourse(value); setFcIdx(0); setFlipped(false); }}><option value="all">Tất cả khóa học</option>{courses.map((course:any)=><option key={course.id} value={course.id}>{course.title}</option>)}</FSelect></div>
+        <div className="flex items-center justify-between gap-4 mb-6"><div><h2 className="text-xl font-bold">Flashcard Library</h2><p className="text-sm text-muted-foreground mt-1">{flashcards.length} thẻ đã xuất bản · {flashcards.filter(card => card.progress?.remembered).length} thẻ đã nhớ</p></div><div className="flex items-center gap-3"><label className="flex items-center gap-2 text-sm font-semibold whitespace-nowrap"><input type="checkbox" checked={hideRemembered} onChange={event => { setHideRemembered(event.target.checked); setFcIdx(0); setFlipped(false); }} /> Ẩn thẻ đã nhớ</label><FSelect value={flashcardCourse} onChange={value => { setFlashcardCourse(value); setFcIdx(0); setFlipped(false); }}><option value="all">Tất cả khóa học</option>{courses.map((course:any)=><option key={course.id} value={course.id}>{course.title}</option>)}</FSelect></div></div>
+        {libraryError && <div className="mb-4 bg-red-50 text-red-600 p-3 rounded-xl text-sm">{libraryError}</div>}
         {!card && <div className="bg-white border border-border rounded-2xl p-12 text-center text-sm text-muted-foreground">Chưa có flashcard được xuất bản.</div>}
         {card && <div className="max-w-xl mx-auto">
         <div className="flex items-center justify-between mb-5">
@@ -695,8 +749,8 @@ function StudentView({ view }: { view: string }) {
         </button>
         <div className="flex gap-2 mt-5">
           <button onClick={() => { setFcIdx(i => Math.max(0, i - 1)); setFlipped(false); }} disabled={fcIdx === 0} className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold hover:bg-muted transition-colors disabled:opacity-40 flex items-center justify-center gap-1"><ChevronLeft size={14} /> Trước</button>
-          <button className="flex-1 py-3 bg-[#FEF2F2] text-[#EF4444] rounded-xl text-sm font-bold hover:bg-red-100 transition-colors">Chưa nhớ</button>
-          <button className="flex-1 py-3 bg-[#ECFDF5] text-[#10B981] rounded-xl text-sm font-bold hover:bg-emerald-100 transition-colors">Đã nhớ ✓</button>
+          <button onClick={() => reviewFlashcard(card, false)} disabled={savingFlashcard} className="flex-1 py-3 bg-[#FEF2F2] text-[#EF4444] rounded-xl text-sm font-bold hover:bg-red-100 transition-colors disabled:opacity-50">Chưa nhớ</button>
+          <button onClick={() => reviewFlashcard(card, true)} disabled={savingFlashcard} className="flex-1 py-3 bg-[#ECFDF5] text-[#10B981] rounded-xl text-sm font-bold hover:bg-emerald-100 transition-colors disabled:opacity-50">Đã nhớ ✓</button>
           <button onClick={() => { setFcIdx(i => Math.min(practiceCards.length - 1, i + 1)); setFlipped(false); }} disabled={safeIndex === practiceCards.length - 1} className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold hover:bg-muted transition-colors disabled:opacity-40 flex items-center justify-center gap-1">Tiếp <ChevronRight size={14} /></button>
         </div>
         <div className="mt-5 bg-[#EEF0FF] rounded-2xl p-4 flex items-center gap-3">

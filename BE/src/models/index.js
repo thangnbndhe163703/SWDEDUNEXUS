@@ -16,6 +16,7 @@ const AssignmentSubmission = require('./AssignmentSubmission')(sequelize);
 const LessonAttachment = require('./LessonAttachment')(sequelize);
 const Question = require('./Question')(sequelize);
 const Flashcard = require('./Flashcard')(sequelize);
+const FlashcardProgress = require('./FlashcardProgress')(sequelize);
 
 Role.hasMany(User, { foreignKey: 'roleId', as: 'users' });
 User.belongsTo(Role, { foreignKey: 'roleId', as: 'role' });
@@ -41,6 +42,10 @@ CourseModule.hasMany(Flashcard, { foreignKey: 'moduleId', as: 'flashcards' });
 Flashcard.belongsTo(CourseModule, { foreignKey: 'moduleId', as: 'module' });
 User.hasMany(Flashcard, { foreignKey: 'smeId', as: 'authoredFlashcards' });
 Flashcard.belongsTo(User, { foreignKey: 'smeId', as: 'sme' });
+User.hasMany(FlashcardProgress, { foreignKey: 'studentId', as: 'flashcardProgress' });
+FlashcardProgress.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
+Flashcard.hasMany(FlashcardProgress, { foreignKey: 'flashcardId', as: 'studentProgress', onDelete: 'CASCADE' });
+FlashcardProgress.belongsTo(Flashcard, { foreignKey: 'flashcardId', as: 'flashcard' });
 
 User.belongsToMany(Course, { through: Enrollment, foreignKey: 'userId', otherKey: 'courseId', as: 'enrolledCourses' });
 Course.belongsToMany(User, { through: Enrollment, foreignKey: 'courseId', otherKey: 'userId', as: 'students' });
@@ -71,4 +76,4 @@ AssignmentSubmission.belongsTo(Assignment, { foreignKey: 'assignmentId', as: 'as
 User.hasMany(AssignmentSubmission, { foreignKey: 'studentId', as: 'assignmentSubmissions' });
 AssignmentSubmission.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
 
-module.exports = { sequelize, Role, User, Category, Course, Lesson, Enrollment, SubscriptionPackage, UserSubscription, CourseModule, ModuleContent, CourseSme, Assignment, AssignmentSubmission, LessonAttachment, Question, Flashcard };
+module.exports = { sequelize, Role, User, Category, Course, Lesson, Enrollment, SubscriptionPackage, UserSubscription, CourseModule, ModuleContent, CourseSme, Assignment, AssignmentSubmission, LessonAttachment, Question, Flashcard, FlashcardProgress };

@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { Flashcard, Course, CourseModule, CourseSme, Enrollment } = require('../models');
+const { Flashcard, FlashcardProgress, Course, CourseModule, CourseSme, Enrollment } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 
 const include = [
@@ -23,7 +23,40 @@ exports.listForStudent = asyncHandler(async (req, res) => {
     if (!courseIds.includes(requestedCourseId)) return res.status(403).json({ message: 'Student is not enrolled in this course' });
     where.courseId = requestedCourseId;
   }
-  res.json(await Flashcard.findAll({ where, include, order: [['courseId', 'ASC'], ['id', 'ASC']] }));
+  const cards = await Flashcard.findAll({ where, include, order: [['courseId', 'ASC'], ['id', 'ASC']] });
+  const progress = await FlashcardProgress.findAll({
+    where: { studentId: req.user.id, flashcardId: cards.map(card => card.id) },
+    attributes: ['flashcardId', 'remembered', 'reviewCount', 'lastReviewedAt'],
+    raw: true,
+  });
+  const progressByCard = new Map(progress.map(item => [item.flashcardId, item]));
+  res.json(cards.map(card => ({
+    ...card.toJSON(),
+    progress: progressByCard.get(card.id) || { remembered: false, reviewCount: 0, lastReviewedAt: null },
+  })));
+});
+
+exports.saveStudentProgress = asyncHandler(async (req, res) => {
+  if (typeof req.body.remembered !== 'boolean') return res.status(400).json({ message: 'remembered must be a boolean' });
+  const card = await Flashcard.findOne({ where: { id: req.params.id, status: 'published' } });
+  if (!card) return res.status(404).json({ message: 'Flashcard not found' });
+  const enrollment = await Enrollment.findOne({
+    where: { userId: req.user.id, courseId: card.courseId, status: { [Op.ne]: 'cancelled' } },
+  });
+  if (!enrollment) return res.status(403).json({ message: 'Student is not enrolled in this course' });
+
+  const [progress, created] = await FlashcardProgress.findOrCreate({
+    where: { studentId: req.user.id, flashcardId: card.id },
+    defaults: { remembered: req.body.remembered, reviewCount: 1, lastReviewedAt: new Date() },
+  });
+  if (!created) {
+    await progress.update({
+      remembered: req.body.remembered,
+      reviewCount: progress.reviewCount + 1,
+      lastReviewedAt: new Date(),
+    });
+  }
+  res.json(progress);
 });
 
 exports.create = asyncHandler(async (req, res) => {
@@ -33,10 +66,19 @@ exports.create = asyncHandler(async (req, res) => {
 });
 
 exports.createMany = asyncHandler(async (req, res) => {
-  const { courseId, moduleId = null, cards } = req.body;
+  const { courseId, moduleId = null, cards, status = 'published' } = req.body;
   if (!(await canManage(req.user.id, courseId))) return res.status(403).json({ message: 'Course is not assigned to this SME' });
   if (!Array.isArray(cards) || !cards.length) return res.status(400).json({ message: 'Cards must be a non-empty array' });
-  const created = await Flashcard.bulkCreate(cards.map(card => ({ ...card, courseId, moduleId, smeId: req.user.id })));
+  const created = await Flashcard.bulkCreate(cards.map(card => ({
+    ...card,
+    courseId,
+    moduleId,
+    smeId: req.user.id,
+    // AI-generated cards are saved through this bulk endpoint. Publish them by
+    // default so enrolled students can immediately use Library and Practice.
+    // Callers can still explicitly request `draft` when review is required.
+    status: card.status || status,
+  })));
   res.status(201).json(await Flashcard.findAll({ where: { id: created.map(card => card.id) }, include }));
 });
 
